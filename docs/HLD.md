@@ -4,6 +4,7 @@
 
 | 文档版本 | 修订日期   | 作者   | 变更说明         |
 |----------|------------|--------|------------------|
+| V1.1     | 2026-05-02 | XuMingKe | 截图蒙版支持右键取消；贴图控制栏去除半透明背景 |
 | V1.0     | 2026-05-02 | XuMingKe | 初始版本         |
 
 ---
@@ -181,8 +182,8 @@ pub struct AppConfig {
 }
 
 pub struct ShortcutConfig {
-    pub capture: String,       // 默认 "Ctrl+Shift+X"
-    pub pin_clipboard: String, // 默认 "Ctrl+Shift+V"
+    pub capture: String,       // 默认 "Ctrl+Alt+L"
+    pub pin_clipboard: String, // 默认 "Ctrl+Alt+P"
 }
 ```
 
@@ -325,7 +326,7 @@ interface TranslatedBlock {
 ### 5.1 截图流程
 
 ```
-1. hotkey 模块检测到 Ctrl+Shift+X
+1. hotkey 模块检测到 Ctrl+Alt+L
 2. 调用 capture::capture_fullscreen() 获取全屏图像
 3. 调用 window::create_overlay_window() 创建蒙版窗口
 4. 前端 Overlay.vue 绘制蒙版，监听鼠标事件
@@ -335,6 +336,8 @@ interface TranslatedBlock {
 8. clipboard 模块将图像写入系统剪贴板
 9. window 模块创建贴图窗口（原位）
 10. 关闭蒙版窗口
+
+注：步骤4-5期间，用户可按 Esc 或右键点击取消截图，直接销毁蒙版窗口
 ```
 
 ### 5.2 OCR 翻译流程
@@ -365,7 +368,7 @@ interface TranslatedBlock {
 ### 5.4 剪贴板贴图流程
 
 ```
-1. hotkey 模块检测到 Ctrl+Shift+V
+1. hotkey 模块检测到 Ctrl+Alt+P
 2. 调用 clipboard::read_clipboard_image()
 3. 若剪贴板无图像，静默忽略
 4. 若有图像，调用 window::create_pin_window() 创建贴图窗口
@@ -410,8 +413,8 @@ target_language = "zh-CN"
 default_mode = "ocr"
 
 [shortcuts]
-capture = "Ctrl+Shift+X"
-pin_clipboard = "Ctrl+Shift+V"
+capture = "Ctrl+Alt+L"
+pin_clipboard = "Ctrl+Alt+P"
 
 [general]
 language = "auto"

@@ -26,8 +26,8 @@ pub struct ShortcutConfig {
 impl Default for ShortcutConfig {
     fn default() -> Self {
         ShortcutConfig {
-            capture: "Ctrl+Shift+X".to_string(),
-            pin_clipboard: "Ctrl+Shift+V".to_string(),
+            capture: "Ctrl+Alt+L".to_string(),
+            pin_clipboard: "Ctrl+Alt+P".to_string(),
         }
     }
 }

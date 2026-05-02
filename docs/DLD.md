@@ -4,6 +4,7 @@
 
 | 文档版本 | 修订日期   | 作者   | 变更说明         |
 |----------|------------|--------|------------------|
+| V1.1     | 2026-05-02 | XuMingKe | 截图蒙版支持右键取消；贴图控制栏去除半透明背景 |
 | V1.0     | 2026-05-02 | XuMingKe | 初始版本         |
 
 ---
@@ -494,10 +495,10 @@ pub fn update_hotkey(app: &tauri::AppHandle, action: &str, new_shortcut: &str) -
 
 ```
 1. 使用 tauri-plugin-global-shortcut 注册截图快捷键
-   - 快捷键字符串：config.capture（默认 "Ctrl+Shift+X"）
+   - 快捷键字符串：config.capture（默认 "Ctrl+Alt+L"）
    - 回调：触发截图流程
 2. 注册剪贴板贴图快捷键
-   - 快捷键字符串：config.pin_clipboard（默认 "Ctrl+Shift+V"）
+   - 快捷键字符串：config.pin_clipboard（默认 "Ctrl+Alt+P"）
    - 回调：触发剪贴板贴图流程
 3. 注册失败时（冲突），返回错误提示
 ```
@@ -523,8 +524,8 @@ pub fn create_tray(app: &tauri::AppHandle) -> Result<(), AppError>;
 2. 设置图标（从资源目录加载）
 3. 设置提示文字（"SnapTranslate"）
 4. 构建菜单项：
-   - "框选截图翻译  Ctrl+Shift+X" -> 触发截图
-   - "从剪贴板贴图  Ctrl+Shift+V" -> 触发贴图
+   - "框选截图翻译  Ctrl+Alt+L" -> 触发截图
+  - "从剪贴板贴图  Ctrl+Alt+P" -> 触发贴图
    - Separator
    - "翻译最近一张贴图" -> 翻译最近贴图
    - "截图与翻译历史" -> 打开历史面板
@@ -760,7 +761,7 @@ const state = reactive({
 
 ```html
 <div class="overlay-container" @mousedown="onMouseDown" @mousemove="onMouseMove"
-     @mouseup="onMouseUp" @keydown.esc="onEsc">
+     @mouseup="onMouseUp" @keydown.esc="onEsc" @contextmenu.prevent="onContextMenu">
   <canvas ref="canvas" class="overlay-canvas"></canvas>
   <div v-if="state.isSelecting" class="selection-rect"
        :style="selectionStyle"></div>
@@ -804,6 +805,10 @@ async function onMouseUp(e: MouseEvent) {
 }
 
 function onEsc() {
+  getCurrentWindow().close()
+}
+
+function onContextMenu() {
   getCurrentWindow().close()
 }
 ```
@@ -910,9 +915,8 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  padding: 4px 0;
+  background: transparent;
   min-height: 36px;
 }
 
@@ -1019,7 +1023,7 @@ defineEmits<{
 
 - 所有圆角设为 0（直角设计），保持简洁利落风格。
 - 半透明深色背景 + 白色文字，确保高对比度可读性。
-- 控制栏使用 backdrop-filter: blur() 实现毛玻璃效果。
+- 控制栏使用透明背景，按钮上边界贴合图片下边界，左边界与图片左边界对齐。
 - 按钮无圆角，使用半透明背景，hover 时增强亮度。
 
 ---

@@ -1,35 +1,93 @@
 import { invoke } from '@tauri-apps/api/core'
 
-/** 快捷键配置 */
-export interface ShortcutConfig {
-  /** 截图翻译快捷键 */
-  capture: string
-  /** 固定到剪贴板快捷键 */
-  pin_clipboard: string
-}
-
-/** 应用配置，与 Rust 后端 AppConfig 结构保持一致 */
 export interface AppConfig {
-  /** API 基础地址 */
-  api_base_url: string
-  /** 文本模型名称 */
-  text_model: string
-  /** 视觉模型名称（可选，多模态模式需要） */
-  vision_model: string | null
-  /** 目标语言 */
-  target_language: string
-  /** 默认翻译模式 */
-  default_mode: 'Ocr' | 'Multimodal'
-  /** 快捷键配置 */
   shortcuts: ShortcutConfig
+  translation: TranslationConfig
+  ocr: OcrConfig
+  general: GeneralConfig
 }
 
-/** 获取应用配置 */
+export interface ShortcutConfig {
+  capture: string
+  pin_clipboard: string
+  translate_recent: string
+}
+
+export interface TranslationConfig {
+  default_mode: string
+  auto_translate: boolean
+  source_lang: string
+  target_lang: string
+}
+
+export interface OcrConfig {
+  engine: string
+  language: string
+}
+
+export interface GeneralConfig {
+  theme: string
+  language: string
+  startup: boolean
+  show_tray: boolean
+}
+
+export interface PinWindowInfo {
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export async function getConfig(): Promise<AppConfig> {
   return invoke<AppConfig>('get_config')
 }
 
-/** 保存应用配置 */
 export async function saveConfig(config: AppConfig): Promise<void> {
   return invoke('save_config', { config })
+}
+
+export async function captureFullscreen(monitorId?: string): Promise<string> {
+  return invoke<string>('capture_fullscreen', { monitorId })
+}
+
+export async function captureRegion(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  monitorId?: string
+): Promise<string> {
+  return invoke<string>('capture_region', { x, y, width, height, monitorId })
+}
+
+export async function writeClipboardImage(imageData: string): Promise<void> {
+  return invoke('write_clipboard_image', { imageData })
+}
+
+export async function readClipboardImage(): Promise<string | null> {
+  return invoke<string | null>('read_clipboard_image')
+}
+
+export async function writeClipboardText(text: string): Promise<void> {
+  return invoke('write_clipboard_text', { text })
+}
+
+export async function createPinWindow(
+  imageData: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): Promise<PinWindowInfo> {
+  return invoke<PinWindowInfo>('create_pin_window', { imageData, x, y, w, h })
+}
+
+export async function closePinWindow(windowId: string): Promise<void> {
+  return invoke('close_pin_window', { windowId })
+}
+
+export async function getPinImage(windowId: string): Promise<string | null> {
+  return invoke<string | null>('get_pin_image', { windowId })
 }

@@ -1,21 +1,24 @@
+use crate::config::ShortcutConfig;
 use crate::error::AppError;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::AppHandle;
 
 // 创建系统托盘图标及菜单
-pub fn create_tray(app: &AppHandle) -> Result<(), AppError> {
+pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), AppError> {
     let capture_item = MenuItem::with_id(
         app,
         "capture",
-        "框选截图翻译  Ctrl+Shift+X",
+        &format!("框选截图翻译  {}", shortcuts.capture),
         true,
         None::<&str>,
     )?;
     let pin_clipboard_item = MenuItem::with_id(
         app,
         "pin_clipboard",
-        "从剪贴板贴图  Ctrl+Shift+V",
+        &format!("从剪贴板贴图  {}", shortcuts.pin_clipboard),
         true,
         None::<&str>,
     )?;
@@ -55,10 +58,55 @@ pub fn create_tray(app: &AppHandle) -> Result<(), AppError> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => {
-                // S2 阶段实现截图功能
+                // 截取主显示器全屏截图并打开蒙版窗口
+                match (|| -> Result<(), AppError> {
+                    let capture_service = crate::capture::CaptureService::new()?;
+                    let image_data = capture_service.capture_fullscreen(None)?;
+                    crate::window::create_overlay_window(app, &image_data)?;
+                    Ok(())
+                })() {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("截图失败: {}", e),
+                }
             }
             "pin_clipboard" => {
-                // S2 阶段实现剪贴板贴图功能
+                // 从剪贴板读取图像并创建贴图窗口
+                match (|| -> Result<(), AppError> {
+                    let image_data = match crate::clipboard::read_clipboard_image(app)? {
+                        Some(data) => data,
+                        None => return Ok(()), // 剪贴板无图像，静默忽略
+                    };
+
+                    // 解码图像获取宽高
+                    let bytes = STANDARD.decode(&image_data)
+                        .map_err(|e| AppError::ClipboardError(format!("Base64 解码失败: {}", e)))?;
+                    let img = image::load_from_memory(&bytes)
+                        .map_err(|e| AppError::ClipboardError(format!("图像解码失败: {}", e)))?;
+                    let (img_w, img_h) = (img.width(), img.height());
+
+                    // 获取主显示器信息，计算屏幕中央位置
+                    let monitors = xcap::Monitor::all()
+                        .map_err(|e| AppError::CaptureError(format!("获取显示器列表失败: {}", e)))?;
+                    let primary = monitors
+                        .iter()
+                        .find(|m| m.is_primary().unwrap_or(false))
+                        .or_else(|| monitors.first())
+                        .ok_or_else(|| AppError::CaptureError("未找到可用显示器".to_string()))?;
+                    let mon_x = primary.x().map_err(|e| AppError::CaptureError(e.to_string()))?;
+                    let mon_y = primary.y().map_err(|e| AppError::CaptureError(e.to_string()))?;
+                    let mon_w = primary.width().map_err(|e| AppError::CaptureError(e.to_string()))?;
+                    let mon_h = primary.height().map_err(|e| AppError::CaptureError(e.to_string()))?;
+
+                    // 贴图窗口定位到主显示器中央
+                    let center_x = mon_x + ((mon_w - img_w) as i32) / 2;
+                    let center_y = mon_y + ((mon_h - img_h) as i32) / 2;
+
+                    crate::window::create_pin_window_on_main_thread(app, &image_data, center_x, center_y, img_w, img_h)?;
+                    Ok(())
+                })() {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("剪贴板贴图失败: {}", e),
+                }
             }
             "translate_recent" => {
                 // S3 阶段实现翻译最近贴图功能
