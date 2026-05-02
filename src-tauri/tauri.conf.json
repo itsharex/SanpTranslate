@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui/tauri/feat/v2/core/tauri-config-schema/schema.json",
+  "productName": "SnapTranslate",
+  "version": "0.1.0",
+  "identifier": "com.snaptranslate.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "SnapTranslate",
+        "width": 800,
+        "height": 600,
+        "visible": false,
+        "decorations": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": false
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

@@ -77,3 +77,11 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+src-tauri/WixTools
+
+# Vite
+dist-ssr/

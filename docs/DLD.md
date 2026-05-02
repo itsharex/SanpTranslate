@@ -932,11 +932,11 @@ defineEmits<{
 }
 
 .btn-primary {
-  background: rgba(59, 130, 246, 0.8);
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .btn-primary:hover {
-  background: rgba(59, 130, 246, 0.95);
+  background: rgba(255, 255, 255, 1);
 }
 ```
 
@@ -1003,8 +1003,8 @@ defineEmits<{
   --color-bg-control: rgba(0, 0, 0, 0.6);
   --color-text-primary: #ffffff;
   --color-text-secondary: rgba(255, 255, 255, 0.7);
-  --color-accent: rgba(59, 130, 246, 0.8);
-  --color-accent-hover: rgba(59, 130, 246, 0.95);
+  --color-accent: rgba(255, 255, 255, 0.85);
+  --color-accent-hover: rgba(255, 255, 255, 1);
   --color-danger: rgba(239, 68, 68, 0.8);
   --border-radius: 0;
   --font-size-sm: 12px;
