@@ -11,6 +11,7 @@ mod tray;
 mod window;
 
 use std::sync::Mutex;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,21 +27,30 @@ pub fn run() {
                 .build(),
         )
         .manage(Mutex::new(window::PinImageStore::default()))
+        .manage(Mutex::new(window::CachedScreenStore::default()))
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
-            commands::capture_fullscreen,
-            commands::capture_region,
             commands::write_clipboard_image,
             commands::read_clipboard_image,
             commands::write_clipboard_text,
-            commands::create_pin_window,
             commands::close_pin_window,
-            commands::get_pin_image
+            commands::get_pin_image,
+            commands::capture_region_from_cache,
+            commands::get_overlay_image,
+            commands::store_pin_image
         ])
         .setup(|app| {
             let config_manager = config::ConfigManager::new(app.handle())?;
             let app_config = config_manager.load()?;
+
+            // 初始化并缓存截图服务
+            let capture_service = capture::CaptureService::new()
+                .map_err(|e| {
+                    log::error!("初始化截图服务失败: {}", e);
+                    e
+                })?;
+            app.manage(std::sync::Mutex::new(capture_service));
 
             tray::create_tray(app.handle(), &app_config.shortcuts)?;
 

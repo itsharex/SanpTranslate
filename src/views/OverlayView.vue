@@ -19,10 +19,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { writeClipboardImage, createPinWindow } from '@/utils/tauri'
+import { invoke } from '@tauri-apps/api/core'
+import { captureRegionFromCache, storePinImage } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
 
 const TAG = 'Overlay'
@@ -37,7 +36,6 @@ const endY = ref(0)
 const fullscreenImage = ref<string | null>(null)
 let fullscreenImgElement: HTMLImageElement | null = null
 
-let unlistenOverlayImage: UnlistenFn | null = null
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null
 let rafId: number | null = null
 
@@ -141,41 +139,42 @@ async function onMouseUp(e: MouseEvent) {
 
     logger.info(TAG, `物理像素: physX=${physX}, physY=${physY}, physW=${physW}, physH=${physH}`)
 
-    logger.info(TAG, '开始从 canvas 裁剪区域...')
-    const regionCanvas = document.createElement('canvas')
-    regionCanvas.width = physW
-    regionCanvas.height = physH
-    const regionCtx = regionCanvas.getContext('2d')!
-    regionCtx.drawImage(fullscreenImgElement!, physX, physY, physW, physH, 0, 0, physW, physH)
-    const regionBase64 = regionCanvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '')
-    logger.info(TAG, `区域裁剪完成，base64长度=${regionBase64.length}`)
+    // 调用后端命令：从缓存裁剪区域 + 快速PNG编码 + 异步剪贴板写入
+    logger.info(TAG, '调用 captureRegionFromCache...')
+    const cropResult = await captureRegionFromCache(physX, physY, physW, physH)
+    logger.info(TAG, `captureRegionFromCache 返回: x=${cropResult.x}, y=${cropResult.y}, w=${cropResult.width}, h=${cropResult.height}`)
 
-    logger.info(TAG, '开始写入剪贴板...')
-    await writeClipboardImage(regionBase64)
-    logger.info(TAG, '剪贴板写入成功')
+    // 生成贴图窗口标签
+    const label = `pin-${crypto.randomUUID()}`
 
-    logger.info(TAG, `调用 prepare_pin_window: physX=${physX}, physY=${physY}, physW=${physW}, physH=${physH}`)
-    const pinInfo = await createPinWindow(regionBase64, physX, physY, physW, physH)
-    logger.info(TAG, `prepare_pin_window 返回: label=${pinInfo.label}, pos=(${pinInfo.x},${pinInfo.y}), size=(${pinInfo.width},${pinInfo.height})`)
+    // 存储图像数据到后端 PinImageStore
+    await storePinImage(label, cropResult.base64_data)
+    logger.info(TAG, `图像数据已存储，label=${label}`)
 
-    logger.info(TAG, `使用 JS API 创建贴图窗口: label=${pinInfo.label}`)
-    const pinWindow = new WebviewWindow(pinInfo.label, {
+    // 前端创建贴图窗口
+    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+    const pinWindow = new WebviewWindow(label, {
       url: '/pin',
-      x: pinInfo.x,
-      y: pinInfo.y,
-      width: pinInfo.width,
-      height: pinInfo.height,
+      title: 'SnapTranslate - 贴图',
       decorations: false,
       alwaysOnTop: true,
       transparent: true,
       shadow: false,
       skipTaskbar: true,
       resizable: false,
+      x: cropResult.x,
+      y: cropResult.y,
+      width: cropResult.width,
+      height: cropResult.height,
     })
-    pinWindow.once('tauri://error', (e) => {
-      logger.error(TAG, `贴图窗口创建失败: ${JSON.stringify(e)}`)
+
+    pinWindow.once('tauri://created', () => {
+      logger.info(TAG, `贴图窗口创建成功: label=${label}`)
     })
-    logger.info(TAG, '贴图窗口创建请求已发送')
+
+    pinWindow.once('tauri://error', (err) => {
+      logger.error(TAG, `贴图窗口创建失败: ${err}`, err)
+    })
   } catch (err) {
     logger.error(TAG, `框选处理失败: ${err}`, err)
   }
@@ -216,9 +215,8 @@ function initCanvasSize() {
   logger.info(TAG, `Canvas初始化: innerSize=${window.innerWidth}x${window.innerHeight}, dpr=${dpr}, canvasSize=${canvas.width}x${canvas.height}`)
 }
 
-function loadFullscreenImage(base64Data: string) {
-  logger.info(TAG, `收到全屏截图数据，base64长度=${base64Data.length}`)
-  const dataUrl = `data:image/png;base64,${base64Data}`
+function loadFullscreenImage(dataUrl: string) {
+  logger.info(TAG, `收到全屏截图数据，dataUrl长度=${dataUrl.length}`)
   fullscreenImage.value = dataUrl
 
   const img = new Image()
@@ -238,22 +236,27 @@ onMounted(async () => {
   logger.info(TAG, 'OverlayView onMounted')
   initCanvasSize()
 
-  unlistenOverlayImage = await listen<string>('overlay-image', (event) => {
-    logger.info(TAG, `收到 overlay-image 事件，payload长度=${event.payload.length}`)
-    loadFullscreenImage(event.payload)
-  })
+  // 主动从后端拉取蒙版图像数据（避免事件时序问题）
+  try {
+    const overlayData = await invoke<{ data: string; mime: string } | null>('get_overlay_image')
+    if (overlayData) {
+      logger.info(TAG, `拉取到蒙版图像数据，mime=${overlayData.mime}，数据长度=${overlayData.data.length}`)
+      const dataUrl = `data:${overlayData.mime};base64,${overlayData.data}`
+      loadFullscreenImage(dataUrl)
+    } else {
+      logger.error(TAG, '后端无蒙版图像数据')
+    }
+  } catch (err) {
+    logger.error(TAG, `拉取蒙版图像数据失败: ${err}`, err)
+  }
 
   keydownHandler = onKeyDown
   window.addEventListener('keydown', keydownHandler)
-  logger.info(TAG, 'OverlayView 初始化完成，等待截图数据')
+  logger.info(TAG, 'OverlayView 初始化完成')
 })
 
 onUnmounted(() => {
   logger.info(TAG, 'OverlayView onUnmounted')
-  if (unlistenOverlayImage) {
-    unlistenOverlayImage()
-    unlistenOverlayImage = null
-  }
   if (keydownHandler) {
     window.removeEventListener('keydown', keydownHandler)
     keydownHandler = null

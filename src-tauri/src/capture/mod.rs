@@ -29,6 +29,7 @@ pub struct MonitorInfo {
 }
 
 /// 截图区域
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureRegion {
     pub x: i32,
@@ -52,6 +53,10 @@ pub struct CapturedImage {
 pub struct CaptureService {
     monitors: Vec<Monitor>,
 }
+
+// HMONITOR 在 Windows 上跨线程使用是安全的，xcap 的 Monitor 内部状态在创建后只读
+unsafe impl Send for CaptureService {}
+unsafe impl Sync for CaptureService {}
 
 impl CaptureService {
     /// 创建截图服务实例，获取显示器列表
@@ -81,6 +86,7 @@ impl CaptureService {
     }
 
     /// 截取全屏截图，返回 Base64 编码的 PNG
+    #[allow(dead_code)]
     pub fn capture_fullscreen(&self, monitor_id: Option<&str>) -> Result<String, AppError> {
         let monitor = self.find_monitor(monitor_id)?;
         let image = monitor
@@ -92,6 +98,7 @@ impl CaptureService {
     }
 
     /// 截取区域截图，返回 Base64 编码的 PNG
+    #[allow(dead_code)]
     pub fn capture_region(&self, region: &CaptureRegion) -> Result<String, AppError> {
         let monitor = self.find_monitor(region.monitor_id.as_deref())?;
         let full_image = monitor
@@ -109,6 +116,40 @@ impl CaptureService {
 
         let cropped = dynamic_image.crop(relative_x, relative_y, region.width, region.height);
         encode_to_base64_png(&cropped)
+    }
+
+    /// 截取全屏截图，返回 JPEG Base64 编码数据（用于蒙版显示）和原始像素数据（用于区域裁剪）
+    pub fn capture_fullscreen_with_cache(
+        &self,
+        monitor_id: Option<&str>,
+    ) -> Result<(String, image::RgbaImage), AppError> {
+        let monitor = self.find_monitor(monitor_id)?;
+        let image = monitor
+            .capture_image()
+            .map_err(|e| AppError::CaptureError(format!("截取全屏失败: {}", e)))?;
+
+        // 保存原始像素数据用于后续区域裁剪
+        let rgba_image = image.clone();
+
+        // 使用 JPEG 编码（质量 85），大幅降低编码耗时
+        let dynamic_image = DynamicImage::ImageRgba8(image);
+        let jpeg_base64 = encode_to_base64_jpeg(&dynamic_image, 85)?;
+
+        Ok((jpeg_base64, rgba_image))
+    }
+
+    /// 获取主显示器信息（物理像素坐标和尺寸）
+    pub fn get_primary_monitor_info(&self) -> Result<(i32, i32, u32, u32), AppError> {
+        let primary = self.monitors
+            .iter()
+            .find(|m| m.is_primary().unwrap_or(false))
+            .or_else(|| self.monitors.first())
+            .ok_or_else(|| AppError::CaptureError("未找到可用显示器".to_string()))?;
+        let x = primary.x().map_err(|e| AppError::CaptureError(e.to_string()))?;
+        let y = primary.y().map_err(|e| AppError::CaptureError(e.to_string()))?;
+        let w = primary.width().map_err(|e| AppError::CaptureError(e.to_string()))?;
+        let h = primary.height().map_err(|e| AppError::CaptureError(e.to_string()))?;
+        Ok((x, y, w, h))
     }
 
     /// 根据 ID 查找显示器，若未指定则返回主显示器
@@ -130,10 +171,29 @@ impl CaptureService {
 }
 
 /// 将 DynamicImage 编码为 Base64 PNG 字符串
+#[allow(dead_code)]
 fn encode_to_base64_png(image: &DynamicImage) -> Result<String, AppError> {
     let mut buf = Cursor::new(Vec::new());
     image
         .write_to(&mut buf, image::ImageFormat::Png)
         .map_err(|e| AppError::CaptureError(format!("PNG编码失败: {}", e)))?;
+    Ok(STANDARD.encode(buf.get_ref()))
+}
+
+/// 将 DynamicImage 编码为 Base64 JPEG 字符串
+/// quality: JPEG 质量（1-100），推荐 85
+fn encode_to_base64_jpeg(image: &DynamicImage, quality: u8) -> Result<String, AppError> {
+    let mut buf = Cursor::new(Vec::new());
+    // JPEG 不支持 alpha 通道，需要转换为 RGB
+    let rgb_image = image.to_rgb8();
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
+    encoder
+        .encode(
+            rgb_image.as_raw(),
+            rgb_image.width(),
+            rgb_image.height(),
+            image::ExtendedColorType::Rgb8,
+        )
+        .map_err(|e| AppError::CaptureError(format!("JPEG编码失败: {}", e)))?;
     Ok(STANDARD.encode(buf.get_ref()))
 }

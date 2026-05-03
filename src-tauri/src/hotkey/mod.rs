@@ -1,3 +1,4 @@
+use tauri::Manager;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::config::ShortcutConfig;
@@ -42,17 +43,38 @@ fn handle_capture_hotkey(app: &tauri::AppHandle) {
     log::info!("[HOTKEY] 截图快捷键触发");
 
     let result = (|| -> Result<(), AppError> {
-        log::info!("[HOTKEY] 开始创建截图服务...");
-        let capture_service = crate::capture::CaptureService::new()?;
-        log::info!("[HOTKEY] 截图服务创建成功，开始截取全屏...");
+        let (jpeg_base64, rgba_image) = {
+            let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
+            let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
+            locked.capture_fullscreen_with_cache(None)?
+        };
 
-        let image_data = capture_service.capture_fullscreen(None)?;
-        log::info!("[HOTKEY] 全屏截图完成，数据长度={}", image_data.len());
+        let monitor = app.primary_monitor()
+            .ok()
+            .flatten()
+            .ok_or_else(|| AppError::ConfigError("获取主显示器信息失败".to_string()))?;
+        let scale_factor = monitor.scale_factor();
+        let monitor_x = (monitor.position().x as f64 * scale_factor).round() as i32;
+        let monitor_y = (monitor.position().y as f64 * scale_factor).round() as i32;
 
-        log::info!("[HOTKEY] 开始创建 overlay 窗口...");
-        crate::window::create_overlay_window(app, &image_data)?;
+        {
+            let store = app.state::<std::sync::Mutex<crate::window::CachedScreenStore>>();
+            let mut store = store.lock().map_err(|e| AppError::ConfigError(format!("锁定缓存失败: {}", e)))?;
+            store.screen = Some(crate::window::CachedScreen {
+                image: rgba_image,
+                monitor_x,
+                monitor_y,
+                scale_factor,
+            });
+        }
+
+        let overlay_data = crate::window::OverlayImageData {
+            data: jpeg_base64,
+            mime: "image/jpeg".to_string(),
+        };
+
+        crate::window::create_overlay_window(app, &overlay_data)?;
         log::info!("[HOTKEY] overlay 窗口创建成功");
-
         Ok(())
     })();
 
@@ -81,27 +103,16 @@ fn handle_pin_clipboard_hotkey(app: &tauri::AppHandle) {
             .map_err(|e| AppError::ClipboardError(format!("图像解码失败: {}", e)))?;
         let (img_w, img_h) = (img.width(), img.height());
 
-        let monitors = xcap::Monitor::all()
-            .map_err(|e| AppError::CaptureError(format!("获取显示器信息失败: {}", e)))?;
-        let primary = monitors
-            .iter()
-            .find(|m| m.is_primary().unwrap_or(false))
-            .or_else(|| monitors.first());
-
-        let (mon_x, mon_y, mon_w, mon_h) = match primary {
-            Some(m) => (
-                m.x().unwrap_or(0),
-                m.y().unwrap_or(0),
-                m.width().unwrap_or(1920),
-                m.height().unwrap_or(1080),
-            ),
-            None => (0, 0, 1920, 1080),
+        let (mon_x, mon_y, mon_w, mon_h) = {
+            let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
+            let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
+            locked.get_primary_monitor_info()?
         };
 
         let x = mon_x + ((mon_w - img_w) as i32) / 2;
         let y = mon_y + ((mon_h - img_h) as i32) / 2;
 
-        crate::window::create_pin_window_on_main_thread(app, &image_data, x, y, img_w, img_h)?;
+        crate::window::create_pin_window(app, &image_data, x, y, img_w, img_h)?;
         Ok(())
     })();
 

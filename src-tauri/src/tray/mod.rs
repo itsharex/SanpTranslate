@@ -2,6 +2,7 @@ use crate::config::ShortcutConfig;
 use crate::error::AppError;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use tauri::Manager;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::AppHandle;
@@ -11,14 +12,14 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
     let capture_item = MenuItem::with_id(
         app,
         "capture",
-        &format!("框选截图翻译  {}", shortcuts.capture),
+        format!("框选截图翻译  {}", shortcuts.capture),
         true,
         None::<&str>,
     )?;
     let pin_clipboard_item = MenuItem::with_id(
         app,
         "pin_clipboard",
-        &format!("从剪贴板贴图  {}", shortcuts.pin_clipboard),
+        format!("从剪贴板贴图  {}", shortcuts.pin_clipboard),
         true,
         None::<&str>,
     )?;
@@ -60,9 +61,39 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
             "capture" => {
                 // 截取主显示器全屏截图并打开蒙版窗口
                 match (|| -> Result<(), AppError> {
-                    let capture_service = crate::capture::CaptureService::new()?;
-                    let image_data = capture_service.capture_fullscreen(None)?;
-                    crate::window::create_overlay_window(app, &image_data)?;
+                    // 从缓存获取截图服务，避免重复调用 Monitor::all()
+                    let (jpeg_base64, rgba_image) = {
+                        let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
+                        let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
+                        locked.capture_fullscreen_with_cache(None)?
+                    };
+
+                    // 获取显示器信息并缓存
+                    let monitor = app.primary_monitor()
+                        .ok()
+                        .flatten()
+                        .ok_or_else(|| AppError::ConfigError("获取主显示器信息失败".to_string()))?;
+                    let scale_factor = monitor.scale_factor();
+                    let monitor_x = (monitor.position().x as f64 * scale_factor).round() as i32;
+                    let monitor_y = (monitor.position().y as f64 * scale_factor).round() as i32;
+
+                    // 缓存全屏截图数据
+                    {
+                        let store = app.state::<std::sync::Mutex<crate::window::CachedScreenStore>>();
+                        let mut store = store.lock().map_err(|e| AppError::ConfigError(format!("锁定缓存失败: {}", e)))?;
+                        store.screen = Some(crate::window::CachedScreen {
+                            image: rgba_image,
+                            monitor_x,
+                            monitor_y,
+                            scale_factor,
+                        });
+                    }
+
+                    let overlay_data = crate::window::OverlayImageData {
+                        data: jpeg_base64,
+                        mime: "image/jpeg".to_string(),
+                    };
+                    crate::window::create_overlay_window(app, &overlay_data)?;
                     Ok(())
                 })() {
                     Ok(_) => {}
@@ -74,7 +105,7 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
                 match (|| -> Result<(), AppError> {
                     let image_data = match crate::clipboard::read_clipboard_image(app)? {
                         Some(data) => data,
-                        None => return Ok(()), // 剪贴板无图像，静默忽略
+                        None => return Ok(()),
                     };
 
                     // 解码图像获取宽高
@@ -84,24 +115,18 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
                         .map_err(|e| AppError::ClipboardError(format!("图像解码失败: {}", e)))?;
                     let (img_w, img_h) = (img.width(), img.height());
 
-                    // 获取主显示器信息，计算屏幕中央位置
-                    let monitors = xcap::Monitor::all()
-                        .map_err(|e| AppError::CaptureError(format!("获取显示器列表失败: {}", e)))?;
-                    let primary = monitors
-                        .iter()
-                        .find(|m| m.is_primary().unwrap_or(false))
-                        .or_else(|| monitors.first())
-                        .ok_or_else(|| AppError::CaptureError("未找到可用显示器".to_string()))?;
-                    let mon_x = primary.x().map_err(|e| AppError::CaptureError(e.to_string()))?;
-                    let mon_y = primary.y().map_err(|e| AppError::CaptureError(e.to_string()))?;
-                    let mon_w = primary.width().map_err(|e| AppError::CaptureError(e.to_string()))?;
-                    let mon_h = primary.height().map_err(|e| AppError::CaptureError(e.to_string()))?;
+                    // 从缓存的截图服务获取显示器信息
+                    let (mon_x, mon_y, mon_w, mon_h) = {
+                        let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
+                        let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
+                        locked.get_primary_monitor_info()?
+                    };
 
                     // 贴图窗口定位到主显示器中央
                     let center_x = mon_x + ((mon_w - img_w) as i32) / 2;
                     let center_y = mon_y + ((mon_h - img_h) as i32) / 2;
 
-                    crate::window::create_pin_window_on_main_thread(app, &image_data, center_x, center_y, img_w, img_h)?;
+                    crate::window::create_pin_window(app, &image_data, center_x, center_y, img_w, img_h)?;
                     Ok(())
                 })() {
                     Ok(_) => {}
