@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SnapTranslate 是一款基于 Tauri 2.x 的桌面截屏翻译工具。它能截取屏幕区域、执行 OCR（Tesseract）识别文字并调用 AI 翻译，将译文展示在右侧译文面板中，以贴图形式固定在桌面上。
 
-**当前状态：** S4 阶段已完成 — 截图、剪贴板、快捷键、贴图窗口、框选蒙版、托盘菜单、OCR、翻译、设置页面、历史记录、国际化均已实现。
+**当前状态：** S4 阶段已完成 — 截图、剪贴板、快捷键、贴图窗口、框选蒙版、托盘菜单、OCR、翻译、设置页面、历史记录、国际化均已实现。最新优化包括：翻译缓存机制、原图数据存储、译文面板布局优化。
 
 ## 开发命令
 
@@ -48,10 +48,10 @@ npm run preview
 | ----------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `capture`   | `capture/mod.rs`    | **已完成** — `CaptureService` 封装 xcap，支持全屏截图和区域截图，返回 Base64 PNG/JPEG；包含 `MonitorInfo`、`CaptureRegion`、`CapturedImage` 数据结构；支持缓存截图数据供区域裁剪使用                                                                                  |
 | `ocr`       | `ocr/mod.rs`        | **已完成** — 使用 Tesseract CLI 进行本地文字识别，支持从资源目录或系统 PATH 查找 Tesseract；`extract_text_with_positions` 提取文字及坐标，TSV 解析将词级结果合并为行级块；包含 `OcrBlock` 数据结构（百分比坐标） |
-| `translate` | `translate/mod.rs`  | **已完成** — OCR 模式翻译：本地 Tesseract 提取文字及坐标 → 查找历史缓存（命中则跳过 API）→ 调用文本模型 API 翻译 → 合并坐标返回翻译块；包含 `translate_with_ocr_blocks`（接收预提取 OCR 块）、`call_text_api`（OpenAI 兼容格式）、`TranslatedBlock`/`TranslateResult`（含 `from_cache` 字段）数据结构 |
+| `translate` | `translate/mod.rs`  | **已完成** — OCR 模式翻译：本地 Tesseract 提取文字及坐标 → 查找历史缓存（命中则跳过 API）→ 调用文本模型 API 翻译 → 合并坐标返回翻译块；包含 `translate_with_ocr_blocks`（接收预提取 OCR 块）、`call_text_api`（OpenAI 兼容格式）、`TranslatedBlock`/`TranslateResult`（含 `from_cache` 字段）数据结构；支持翻译缓存机制，避免重复翻译相同内容 |
 | `clipboard` | `clipboard/mod.rs`  | **已完成** — `read_clipboard_image`/`write_clipboard_image`/`write_clipboard_text`，支持 Base64 和原始 RGBA 数据读写图片                                                                                |
 | `hotkey`    | `hotkey/mod.rs`     | **已完成** — `register_hotkeys` 注册全局快捷键（从配置动态解析），支持 Ctrl/Shift/Alt/Super 修饰键 + A-Z/0-9/F1-F12，回调中串联截图或剪贴板操作                                                                                            |
-| `history`   | `history/mod.rs`    | **已完成** — `HistoryService` 管理 SQLite 数据库，支持 CRUD 操作和缩略图生成（最大 200x200 JPEG）；包含 `HistoryEntry`、`HistoryListItem`、`NewHistoryEntry`（含 `target_language` 和 `blocks_json` 字段）数据结构；新增 `find_by_ocr_text` 方法用于翻译缓存匹配；默认最多 50 条记录，超出自动删除最旧的 |
+| `history`   | `history/mod.rs`    | **已完成** — `HistoryService` 管理 SQLite 数据库，支持 CRUD 操作和缩略图生成（最大 200x200 JPEG）；包含 `HistoryEntry`、`HistoryListItem`、`NewHistoryEntry`（含 `target_language` 和 `blocks_json` 字段）数据结构；新增 `find_by_ocr_text` 方法用于翻译缓存匹配；支持原图数据存储（Base64 编码）；默认最多 50 条记录，超出自动删除最旧的 |
 | `config`    | `config/manager.rs` | **已完成** — 基于 TOML 的配置（API URL、模型名称、目标语言、快捷键），从 `app_config_dir/config.toml` 加载，通过临时文件+重命名实现原子写入；支持通过 keyring 管理 API 密钥                                                                                                       |
 | `config`    | `config/mod.rs`     | 重新导出 `AppConfig`、`ConfigManager`、`ShortcutConfig`                                                                                                                                   |
 | `window`    | `window/mod.rs`     | **已完成** — `create_settings_window`/`create_history_window`（单例模式）、`create_overlay_window`（全屏蒙版，将图像数据存入缓存供前端拉取）、`create_pin_window`（UUID 标签，窗口尺寸预留控制栏高度）、`close_pin_window`、`get_pin_image`、`PinImageStore`/`CachedScreenStore`/`CachedScreen`/`OverlayImageData`/`CropResult` 数据结构 |
@@ -84,7 +84,7 @@ npm run preview
 | 样式    | `styles/variables.css`      | CSS 自定义属性（深色透明主题）                                                             |
 | 样式    | `styles/global.css`         | 全局重置及基础样式                                                                     |
 | 视图    | `views/OverlayView.vue`     | **已完成** — Canvas 全屏截图蒙版，支持鼠标框选（白虚线框+暗色蒙版）、尺寸提示、Esc 关闭；选后调用后端裁剪+写入剪贴板+创建贴图窗口   |
-| 视图    | `views/PinView.vue`         | **已完成** — 贴图窗口：显示截图、控制栏组件（翻译/复制/切换）、原生窗口拖拽（排除按钮区域）、双击图片区域关闭；集成 OCR 翻译功能、翻译覆盖层显示、原文/译文切换、复制翻译文本   |
+| 视图    | `views/PinView.vue`         | **已完成** — 贴图窗口：显示截图、控制栏组件（翻译/复制/切换）、原生窗口拖拽（排除按钮区域）、双击图片区域关闭；集成 OCR 翻译功能、翻译覆盖层显示、原文/译文切换、复制翻译文本；新增右侧译文面板布局、面板拉伸功能、自适应阴影样式 |
 | 视图    | `views/SettingsView.vue`    | **已完成** — 设置页面：使用 Naive UI 组件库，包含 API 配置（地址/密钥/模型）、翻译配置（目标语言）、快捷键配置；支持保存配置和测试 API 连接；API 密钥通过 keyring 管理 |
 | 视图    | `views/HistoryView.vue`     | **已完成** — 历史记录页面：使用 Naive UI 深色主题，支持列表展示、详情弹窗、复制翻译、逐条删除、清空全部                                   |
 
@@ -96,7 +96,7 @@ npm run preview
 
 - **蒙版窗口流程：** `lib.rs` setup → 快捷键/托盘回调 → `capture::capture_fullscreen_with_cache()` → 缓存全屏截图到 `CachedScreenStore.screen` → `window::create_overlay_window()` → 后端将 JPEG 图像数据存入 `CachedScreenStore.overlay_image` → OverlayView 调用 `get_overlay_image` 命令拉取数据 → 绘制截图 → 用户框选 → `capture_region_from_cache` 命令 → 返回 `CropResult`（含图像和位置信息）→ `store_pin_image` 存储图像 → 创建贴图窗口
 - **贴图窗口流程：** `create_pin_window()` 创建 WebviewWindow → PinView 调用 `get_pin_image` 命令从 `PinImageStore` 拉取图像数据 → 显示图片 + ControlBar
-- **翻译流程：** 用户点击"AI 翻译"按钮 → PinView 调用 `get_config` 获取目标语言 → 调用 `translate_image` 命令 → 后端执行 Tesseract OCR 提取文字及坐标 → 查找历史缓存（命中则直接返回）→ 未命中则调用文本模型 API 翻译 → 返回 `TranslateResult`（包含 `TranslatedBlock[]` 和 `from_cache` 标志）→ 前端渲染翻译覆盖层 → 后端异步保存历史记录（含 `target_language` 和 `blocks_json`）
+- **翻译流程：** 用户点击"AI 翻译"按钮 → PinView 调用 `get_config` 获取目标语言 → 调用 `translate_image` 命令 → 后端执行 Tesseract OCR 提取文字及坐标 → 查找历史缓存（根据 OCR 文本和目标语言匹配，命中则直接返回）→ 未命中则调用文本模型 API 翻译 → 返回 `TranslateResult`（包含 `TranslatedBlock[]` 和 `from_cache` 标志）→ 前端渲染翻译覆盖层 → 后端异步保存历史记录（含 `target_language` 和 `blocks_json`）
 - **历史记录流程：** 翻译完成 → 后端自动保存到 SQLite → 用户点击托盘"历史" → 前端调用 `get_history_list` → HistoryView 展示列表
 
 ### AppConfig 结构（Rust）
@@ -127,4 +127,4 @@ pub struct ShortcutConfig {
 - **窗口管理：** 设置和历史记录窗口为单例（如果已打开则复用现有窗口）；蒙版窗口为单例（打开前先关闭已有实例）；贴图窗口每次创建新实例（UUID 标签）
 - **UI 框架：** Naive UI 已在设置页面和历史页面中使用，采用深色主题配合 `createDiscreteApi` 创建独立的 message 实例
 - **日志系统：** 使用 `tauri-plugin-log`，输出到 Stdout、Webview 控制台和日志文件目录
-- **历史记录：** SQLite 数据库存储在 `{app_data_dir}/data/history.db`，最多保存 50 条记录，缩略图最大 200x200 JPEG 格式；数据库包含 `target_language` 和 `blocks_json` 列用于翻译缓存
+- **历史记录：** SQLite 数据库存储在 `{app_data_dir}/data/history.db`，最多保存 50 条记录，缩略图最大 200x200 JPEG 格式；数据库包含 `target_language` 和 `blocks_json` 列用于翻译缓存；新增 `image_blob` 列存储原图数据（Base64 编码）

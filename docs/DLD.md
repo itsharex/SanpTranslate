@@ -386,7 +386,7 @@ pub struct NewHistoryEntry {
 ```sql
 CREATE TABLE IF NOT EXISTS history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    image_blob BLOB NOT NULL,
+    image_blob BLOB,
     thumbnail BLOB NOT NULL,
     ocr_text TEXT,
     translated_text TEXT NOT NULL,

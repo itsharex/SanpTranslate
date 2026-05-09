@@ -428,15 +428,14 @@ async function onTranslate() {
 
     logger.info(TAG, `翻译完成，共 ${translatedBlocks.value.length} 个翻译块`)
 
-    // 在下一帧测量面板宽度和初始高度，并调整窗口大小
+    // 在下一帧测量面板宽度，并将面板初始高度设为图片高度
     await nextTick()
     storedPanelWidth = measurePanelWidth(result.blocks)
-    if (panelRef.value) {
-      initialPanelHeight = panelRef.value.offsetHeight
-      logger.info(TAG, `译文面板测量宽度: ${storedPanelWidth}px, 初始高度: ${initialPanelHeight}px`)
-    } else {
-      logger.info(TAG, `译文面板测量宽度: ${storedPanelWidth}px`)
-    }
+
+    // 面板初始高度等于贴图图片高度，确保面板与图片等高
+    panelHeight.value = logicalImageHeight
+    initialPanelHeight = logicalImageHeight
+    logger.info(TAG, `译文面板测量宽度: ${storedPanelWidth}px, 初始高度: ${initialPanelHeight}px`)
 
     await updateWindowSize(true)
   } catch (err) {
@@ -534,6 +533,7 @@ async function onToggleOriginal() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  align-self: flex-start;
 }
 
 /* 译文内容可滚动容器 */
