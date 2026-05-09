@@ -19,12 +19,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke } from '@tauri-apps/api/core'
 import { captureRegionFromCache, storePinImage } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
 
 const TAG = 'Overlay'
+const { t } = useI18n()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -155,7 +157,7 @@ async function onMouseUp(e: MouseEvent) {
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
     const pinWindow = new WebviewWindow(label, {
       url: '/pin',
-      title: 'SnapTranslate - 贴图',
+      title: t('pin.title'),
       decorations: false,
       alwaysOnTop: true,
       transparent: true,

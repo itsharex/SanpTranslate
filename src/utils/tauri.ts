@@ -8,6 +8,8 @@ export interface AppConfig {
   model: string
   /** 目标翻译语言 */
   target_language: string
+  /** 界面语言（"auto" 跟随系统，"zh-CN" 或 "en-US"） */
+  language: string
   /** 快捷键配置 */
   shortcuts: ShortcutConfig
 }
@@ -170,9 +172,10 @@ export async function setApiKey(key: string): Promise<void> {
 export async function testApiConnection(
   apiBaseUrl: string,
   apiKey: string,
-  model: string
+  model: string,
+  language?: string
 ): Promise<string> {
-  return invoke<string>('test_api_connection', { apiBaseUrl, apiKey, model })
+  return invoke<string>('test_api_connection', { apiBaseUrl, apiKey, model, language })
 }
 
 /** 获取历史记录列表 */

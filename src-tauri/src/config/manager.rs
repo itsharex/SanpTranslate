@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub model: String,
     /// 目标语言
     pub target_language: String,
+    /// 界面语言（"auto" 表示跟随系统，"zh-CN" 或 "en-US"）
+    pub language: String,
     /// 快捷键配置
     pub shortcuts: ShortcutConfig,
 }
@@ -45,8 +47,23 @@ impl Default for AppConfig {
             api_base_url: String::new(),
             model: String::new(),
             target_language: "zh-CN".to_string(),
+            language: "auto".to_string(),
             shortcuts: ShortcutConfig::default(),
         }
+    }
+}
+
+/// 解析界面语言：若为 "auto" 则根据系统语言自动推断，否则原样返回
+pub fn resolve_language(language: &str) -> String {
+    if language == "auto" {
+        let sys_lang = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string());
+        if sys_lang.starts_with("zh") {
+            "zh-CN".to_string()
+        } else {
+            "en-US".to_string()
+        }
+    } else {
+        language.to_string()
     }
 }
 

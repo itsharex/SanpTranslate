@@ -14,7 +14,17 @@ pub fn get_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
 #[tauri::command]
 pub fn save_config(app: tauri::AppHandle, config: AppConfig) -> Result<(), String> {
     let manager = ConfigManager::new(&app).map_err(|e| e.to_string())?;
-    manager.save(&config).map_err(|e| e.to_string())
+    manager.save(&config).map_err(|e| e.to_string())?;
+
+    // 更新托盘菜单以反映语言变更
+    if let Err(e) = crate::tray::update_tray_menu(&app, &config.shortcuts, &config.language) {
+        log::warn!("更新托盘菜单失败: {}", e);
+    }
+
+    // 广播语言变更事件到所有窗口
+    crate::tray::emit_language_changed(&app, &config.language);
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -67,7 +77,18 @@ pub fn capture_region_from_cache(
 
     let mut screen = cached_screen.ok_or_else(|| {
         log::error!("[CMD] 缓存中无全屏截图数据");
-        "缓存中无全屏截图数据，请重新截图".to_string()
+        // 读取配置以确定界面语言
+        let lang = crate::config::ConfigManager::new(&app)
+            .ok()
+            .and_then(|m| m.load().ok())
+            .map(|c| c.language)
+            .unwrap_or_else(|| "auto".to_string());
+        let is_zh = crate::config::resolve_language(&lang) == "zh-CN";
+        if is_zh {
+            "缓存中无全屏截图数据，请重新截图".to_string()
+        } else {
+            "No cached screenshot data. Please capture again.".to_string()
+        }
     })?;
 
     let cropped = image::imageops::crop(&mut screen.image, x, y, width, height);
@@ -173,6 +194,9 @@ pub async fn translate_image(
     let config_manager = crate::config::ConfigManager::new(&app).map_err(|e| e.to_string())?;
     let config = config_manager.load().map_err(|e| e.to_string())?;
 
+    // 根据界面语言选择错误提示文本
+    let is_zh = crate::config::resolve_language(&config.language) == "zh-CN";
+
     // 获取 API 密钥
     log::info!("[CMD] translate_image: 正在从密钥环读取 API 密钥...");
     let api_key = config_manager.get_api_key().map_err(|e| {
@@ -181,7 +205,11 @@ pub async fn translate_image(
     })?;
     let api_key = api_key.ok_or_else(|| {
         log::error!("[CMD] translate_image: API 密钥未配置");
-        "API 密钥未配置，请在设置中配置 API 密钥".to_string()
+        if is_zh {
+            "API 密钥未配置，请在设置中配置 API 密钥".to_string()
+        } else {
+            "API key not configured. Please set it in Settings.".to_string()
+        }
     })?;
     log::info!("[CMD] translate_image: API 密钥读取成功");
 
@@ -312,10 +340,14 @@ pub async fn test_api_connection(
     api_base_url: String,
     api_key: String,
     model: String,
+    language: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    // 使用提供的参数直接测试，不读取配置
     let _ = app; // 避免 unused 警告
+
+    // 根据界面语言选择提示文本
+    let effective_lang = crate::config::resolve_language(language.as_deref().unwrap_or("auto"));
+    let is_zh = effective_lang == "zh-CN";
 
     let url = format!("{}/chat/completions", api_base_url.trim_end_matches('/'));
 
@@ -332,7 +364,13 @@ pub async fn test_api_connection(
         .timeout(std::time::Duration::from_secs(15))
         .connect_timeout(std::time::Duration::from_secs(10))
         .build()
-        .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
+        .map_err(|e| {
+            if is_zh {
+                format!("创建HTTP客户端失败: {}", e)
+            } else {
+                format!("Failed to create HTTP client: {}", e)
+            }
+        })?;
     let response = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", api_key))
@@ -341,21 +379,32 @@ pub async fn test_api_connection(
         .send()
         .await
         .map_err(|e| {
-            let mut msg = format!("连接失败: {}", e);
+            let mut msg = if is_zh {
+                format!("连接失败: {}", e)
+            } else {
+                format!("Connection failed: {}", e)
+            };
             let mut source = e.source();
             while let Some(err) = source {
-                msg.push_str(&format!("\n  原因: {}", err));
+                if is_zh {
+                    msg.push_str(&format!("\n  原因: {}", err));
+                } else {
+                    msg.push_str(&format!("\n  Cause: {}", err));
+                }
                 source = err.source();
             }
             msg
         })?;
 
     if response.status().is_success() {
-        Ok("连接成功".to_string())
+        if is_zh {
+            Ok("连接成功".to_string())
+        } else {
+            Ok("Connection successful".to_string())
+        }
     } else {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        // 尝试解析错误响应中的 message 字段，提供更友好的错误信息
         let error_msg = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
             json["error"]["message"]
                 .as_str()
@@ -364,14 +413,13 @@ pub async fn test_api_connection(
         } else {
             body.clone()
         };
-        // 根据状态码提供更友好的提示
         match status.as_u16() {
-            401 => Err("API 密钥无效或已过期".to_string()),
-            403 => Err("无权访问该 API，请检查密钥权限".to_string()),
-            404 => Err("API 地址不存在，请检查地址是否正确".to_string()),
-            429 => Err("请求过于频繁，请稍后再试".to_string()),
-            500..=599 => Err("服务器错误，请稍后再试".to_string()),
-            _ => Err(format!("连接失败: {}", error_msg)),
+            401 => Err(if is_zh { "API 密钥无效或已过期".to_string() } else { "Invalid or expired API key".to_string() }),
+            403 => Err(if is_zh { "无权访问该 API，请检查密钥权限".to_string() } else { "No permission to access the API. Check your key permissions.".to_string() }),
+            404 => Err(if is_zh { "API 地址不存在，请检查地址是否正确".to_string() } else { "API URL not found. Please check the URL.".to_string() }),
+            429 => Err(if is_zh { "请求过于频繁，请稍后再试".to_string() } else { "Too many requests. Please try again later.".to_string() }),
+            500..=599 => Err(if is_zh { "服务器错误，请稍后再试".to_string() } else { "Server error. Please try again later.".to_string() }),
+            _ => Err(if is_zh { format!("连接失败: {}", error_msg) } else { format!("Connection failed: {}", error_msg) }),
         }
     }
 }

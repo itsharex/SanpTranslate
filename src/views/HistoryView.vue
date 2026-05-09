@@ -294,6 +294,11 @@ onMounted(async () => {
   background-color: #101014;
 }
 
+/* WebKit浏览器隐藏滚动条 */
+.history-container::-webkit-scrollbar {
+  display: none;
+}
+
 .history-header {
   display: flex;
   align-items: center;

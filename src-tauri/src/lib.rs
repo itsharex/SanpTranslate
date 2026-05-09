@@ -28,6 +28,7 @@ pub fn run() {
         )
         .manage(Mutex::new(window::PinImageStore::default()))
         .manage(Mutex::new(window::CachedScreenStore::default()))
+        .manage(Mutex::new(tray::TrayState::default()))
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
@@ -74,7 +75,7 @@ pub fn run() {
                 })?;
             app.manage(Mutex::new(history_service));
 
-            tray::create_tray(app.handle(), &app_config.shortcuts)?;
+            tray::create_tray(app.handle(), &app_config.shortcuts, &app_config.language)?;
 
             #[cfg(desktop)]
             hotkey::register_hotkeys(app.handle(), &app_config.shortcuts)?;

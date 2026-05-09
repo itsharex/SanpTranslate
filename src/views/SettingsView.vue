@@ -3,6 +3,18 @@
     <div class="settings-container">
       <n-spin :show="loading">
         <n-space vertical :size="16">
+          <!-- 界面语言设置区域 -->
+          <n-card :title="t('settings.languageConfig')" size="small">
+            <n-form label-placement="left" label-width="100" :show-feedback="false">
+              <n-form-item :label="t('settings.language')">
+                <n-select
+                  v-model:value="formData.language"
+                  :options="uiLanguageOptions"
+                />
+              </n-form-item>
+            </n-form>
+          </n-card>
+
           <!-- API 配置区域 -->
           <n-card :title="t('settings.apiConfig')" size="small">
             <n-form label-placement="left" label-width="100" :show-feedback="false">
@@ -95,7 +107,7 @@ import { testApiConnection, type AppConfig } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
 
 const TAG = 'SettingsView'
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // 创建独立的 message 实例，配合深色主题（无需 NMessageProvider 包裹）
 const { message } = createDiscreteApi(['message'], {
@@ -112,6 +124,7 @@ const formData = reactive({
   api_key: '',
   model: '',
   target_language: 'zh-CN',
+  language: 'auto',
   shortcuts_capture: '',
   shortcuts_pin_clipboard: '',
 })
@@ -123,6 +136,13 @@ const testing = ref(false)
 
 // 是否已有 API 密钥（从 keyring 读取）
 const hasApiKey = computed(() => !!configStore.apiKey)
+
+// 界面语言选项列表
+const uiLanguageOptions = computed(() => [
+  { label: t('settings.languageAuto'), value: 'auto' },
+  { label: t('settings.languageZhCN'), value: 'zh-CN' },
+  { label: t('settings.languageEnUS'), value: 'en-US' },
+])
 
 // 目标语言选项列表（使用 i18n 标签，支持语言切换）
 const languageOptions = computed(() => [
@@ -142,6 +162,7 @@ function populateForm(config: AppConfig) {
   formData.api_base_url = config.api_base_url
   formData.model = config.model
   formData.target_language = config.target_language
+  formData.language = config.language || 'auto'
   formData.shortcuts_capture = config.shortcuts.capture
   formData.shortcuts_pin_clipboard = config.shortcuts.pin_clipboard
   // API 密钥不从 keyring 填充到表单，仅通过占位符提示已有密钥
@@ -157,19 +178,28 @@ async function onSave() {
       api_base_url: formData.api_base_url.trim(),
       model: formData.model.trim(),
       target_language: formData.target_language,
+      language: formData.language,
       shortcuts: {
         capture: formData.shortcuts_capture.trim(),
         pin_clipboard: formData.shortcuts_pin_clipboard.trim(),
       },
     }
 
-    // 保存配置到 TOML 文件
+    // 保存配置到 TOML 文件（后端会自动更新托盘菜单和广播语言变更事件）
     await configStore.updateConfig(newConfig)
 
     // 如果用户输入了新的 API 密钥，保存到 keyring
     if (formData.api_key.trim()) {
       await configStore.setApiKey(formData.api_key.trim())
       formData.api_key = ''
+    }
+
+    // 立即更新当前窗口的界面语言
+    if (formData.language === 'auto') {
+      const sysLang = navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US'
+      locale.value = sysLang
+    } else {
+      locale.value = formData.language
     }
 
     message.success(t('settings.configSaved'))
@@ -202,10 +232,12 @@ async function onTestConnection() {
 
   testing.value = true
   try {
+    // 传入当前界面语言，使后端返回对应语言的提示信息
     const result = await testApiConnection(
       formData.api_base_url.trim(),
       apiKey,
-      formData.model.trim()
+      formData.model.trim(),
+      formData.language
     )
     message.success(result)
     logger.info(TAG, 'API 连接测试成功')
@@ -250,6 +282,11 @@ onMounted(async () => {
   overflow-y: auto;
   box-sizing: border-box;
   background-color: #101014;
+}
+
+/* WebKit浏览器隐藏滚动条 */
+.settings-container::-webkit-scrollbar {
+  display: none;
 }
 
 /* 表单项之间增加间距 */

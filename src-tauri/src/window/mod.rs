@@ -1,3 +1,4 @@
+use crate::config::resolve_language;
 use crate::error::AppError;
 use image::RgbaImage;
 use std::collections::HashMap;
@@ -74,8 +75,13 @@ pub fn create_settings_window(app: &AppHandle) -> Result<(), AppError> {
         return Ok(());
     }
 
+    // 读取配置以确定界面语言
+    let language = get_config_language(app);
+    let is_zh = resolve_language(&language) == "zh-CN";
+    let title = if is_zh { "SnapTranslate - 设置" } else { "SnapTranslate - Settings" };
+
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("/settings".into()))
-        .title("SnapTranslate - 设置")
+        .title(title)
         .inner_size(500.0, 600.0)
         .center()
         .resizable(true)
@@ -92,8 +98,13 @@ pub fn create_history_window(app: &AppHandle) -> Result<(), AppError> {
         return Ok(());
     }
 
+    // 读取配置以确定界面语言
+    let language = get_config_language(app);
+    let is_zh = resolve_language(&language) == "zh-CN";
+    let title = if is_zh { "SnapTranslate - 历史记录" } else { "SnapTranslate - History" };
+
     WebviewWindowBuilder::new(app, "history", WebviewUrl::App("/history".into()))
-        .title("SnapTranslate - 历史记录")
+        .title(title)
         .inner_size(600.0, 500.0)
         .center()
         .resizable(true)
@@ -247,4 +258,16 @@ pub fn close_pin_window(app: &AppHandle, window_id: &str) -> Result<(), AppError
         window.destroy().map_err(|e| AppError::ConfigError(format!("关闭贴图窗口 {} 失败: {}", window_id, e)))?;
     }
     Ok(())
+}
+
+/// 从配置文件读取界面语言设置，读取失败时返回 "auto"
+fn get_config_language(app: &AppHandle) -> String {
+    let config_manager = crate::config::ConfigManager::new(app);
+    match config_manager {
+        Ok(manager) => match manager.load() {
+            Ok(config) => config.language,
+            Err(_) => "auto".to_string(),
+        },
+        Err(_) => "auto".to_string(),
+    }
 }

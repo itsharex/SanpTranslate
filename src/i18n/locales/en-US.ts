@@ -37,6 +37,11 @@ export default {
   // Settings
   settings: {
     title: 'Settings',
+    languageConfig: 'Language',
+    language: 'Language',
+    languageAuto: 'Follow System',
+    languageZhCN: '简体中文',
+    languageEnUS: 'English',
     apiConfig: 'API Configuration',
     apiBaseUrl: 'API Base URL',
     apiKey: 'API Key',

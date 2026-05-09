@@ -1,43 +1,90 @@
 use crate::config::ShortcutConfig;
+use crate::config::resolve_language;
 use crate::error::AppError;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::AppHandle;
+use tauri::Emitter;
 
-// 创建系统托盘图标及菜单
-pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), AppError> {
+/// 托盘图标状态，用于后续更新菜单
+pub struct TrayState {
+    pub tray: Option<TrayIcon>,
+}
+
+impl Default for TrayState {
+    fn default() -> Self {
+        TrayState { tray: None }
+    }
+}
+
+/// 托盘菜单的多语言文本
+struct TrayText {
+    capture_translate: String,
+    pin_clipboard: String,
+    history: String,
+    settings: String,
+    restart: String,
+    quit: String,
+}
+
+/// 根据语言代码获取托盘菜单文本
+fn get_tray_text(language: &str, shortcuts: &ShortcutConfig) -> TrayText {
+    let effective_lang = resolve_language(language);
+    let is_zh = effective_lang == "zh-CN";
+
+    if is_zh {
+        TrayText {
+            capture_translate: format!("框选截图翻译  {}", shortcuts.capture),
+            pin_clipboard: format!("从剪贴板贴图  {}", shortcuts.pin_clipboard),
+            history: "截图与翻译历史".to_string(),
+            settings: "设置".to_string(),
+            restart: "重新启动".to_string(),
+            quit: "退出".to_string(),
+        }
+    } else {
+        TrayText {
+            capture_translate: format!("Capture & Translate  {}", shortcuts.capture),
+            pin_clipboard: format!("Pin from Clipboard  {}", shortcuts.pin_clipboard),
+            history: "Translation History".to_string(),
+            settings: "Settings".to_string(),
+            restart: "Restart".to_string(),
+            quit: "Quit".to_string(),
+        }
+    }
+}
+
+/// 构建托盘菜单（不含事件处理）
+fn build_tray_menu(app: &AppHandle, text: &TrayText) -> Result<Menu<tauri::Wry>, AppError> {
     let capture_item = MenuItem::with_id(
         app,
         "capture",
-        format!("框选截图翻译  {}", shortcuts.capture),
+        &text.capture_translate,
         true,
         None::<&str>,
     )?;
     let pin_clipboard_item = MenuItem::with_id(
         app,
         "pin_clipboard",
-        format!("从剪贴板贴图  {}", shortcuts.pin_clipboard),
+        &text.pin_clipboard,
         true,
         None::<&str>,
     )?;
     let separator1 = PredefinedMenuItem::separator(app)?;
-    let history_item = MenuItem::with_id(app, "history", "截图与翻译历史", true, None::<&str>)?;
+    let history_item = MenuItem::with_id(app, "history", &text.history, true, None::<&str>)?;
     let separator2 = PredefinedMenuItem::separator(app)?;
-    let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
-    // 在开发模式下禁用重启菜单项
+    let settings_item = MenuItem::with_id(app, "settings", &text.settings, true, None::<&str>)?;
+    // 开发模式下禁用重启菜单项
     let restart_item = MenuItem::with_id(
         app,
         "restart",
-        "重新启动",
-        !cfg!(debug_assertions), // 开发模式下禁用
+        &text.restart,
+        !cfg!(debug_assertions),
         None::<&str>,
     )?;
-    let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", &text.quit, true, None::<&str>)?;
 
-    let menu = Menu::with_items(
+    Ok(Menu::with_items(
         app,
         &[
             &capture_item,
@@ -49,46 +96,50 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
             &restart_item,
             &quit_item,
         ],
-    )?;
+    )?)
+}
+
+/// 创建系统托盘图标及菜单
+pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig, language: &str) -> Result<(), AppError> {
+    let text = get_tray_text(language, shortcuts);
+    let menu = build_tray_menu(app, &text)?;
 
     // 加载默认托盘图标
     let icon = tauri::image::Image::from_bytes(include_bytes!("../../icons/icon.png"))?;
 
-    TrayIconBuilder::new()
+    let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => {
-                // 先创建蒙版窗口，再执行截图
                 match crate::hotkey::handle_capture_flow(app) {
                     Ok(_) => {}
                     Err(e) => log::error!("截图失败: {}", e),
                 }
             }
             "pin_clipboard" => {
-                // 从剪贴板读取图像并创建贴图窗口
                 match (|| -> Result<(), AppError> {
+                    use base64::Engine;
+                    use base64::engine::general_purpose::STANDARD;
+
                     let image_data = match crate::clipboard::read_clipboard_image(app)? {
                         Some(data) => data,
                         None => return Ok(()),
                     };
 
-                    // 解码图像获取宽高
                     let bytes = STANDARD.decode(&image_data)
                         .map_err(|e| AppError::ClipboardError(format!("Base64 解码失败: {}", e)))?;
                     let img = image::load_from_memory(&bytes)
                         .map_err(|e| AppError::ClipboardError(format!("图像解码失败: {}", e)))?;
                     let (img_w, img_h) = (img.width(), img.height());
 
-                    // 从缓存的截图服务获取显示器信息
                     let (mon_x, mon_y, mon_w, mon_h) = {
                         let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
                         let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
                         locked.get_primary_monitor_info()?
                     };
 
-                    // 贴图窗口定位到主显示器中央
                     let center_x = mon_x + ((mon_w - img_w) as i32) / 2;
                     let center_y = mon_y + ((mon_h - img_h) as i32) / 2;
 
@@ -110,7 +161,6 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
                 }
             }
             "restart" => {
-                // 在开发模式下，重启功能不可用，因为前端开发服务器不会重启
                 #[cfg(debug_assertions)]
                 {
                     log::warn!("开发模式下不支持重启功能，请手动重启开发服务器");
@@ -127,5 +177,38 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig) -> Result<(), Ap
         })
         .build(app)?;
 
+    // 将 TrayIcon 存储到状态中，以便后续更新菜单
+    let state = app.state::<std::sync::Mutex<TrayState>>();
+    let mut tray_state = state.lock().map_err(|e| {
+        AppError::ConfigError(format!("锁定 TrayState 失败: {}", e))
+    })?;
+    *tray_state = TrayState { tray: Some(tray) };
+
     Ok(())
+}
+
+/// 更新托盘菜单的语言（配置保存后调用）
+pub fn update_tray_menu(app: &AppHandle, shortcuts: &ShortcutConfig, language: &str) -> Result<(), AppError> {
+    let state = app.state::<std::sync::Mutex<TrayState>>();
+    let tray_state = state.lock().map_err(|e| {
+        AppError::ConfigError(format!("锁定 TrayState 失败: {}", e))
+    })?;
+
+    if let Some(tray) = tray_state.tray.as_ref() {
+        let text = get_tray_text(language, shortcuts);
+        let menu = build_tray_menu(app, &text)?;
+        tray.set_menu(Some(menu)).map_err(|e| {
+            AppError::ConfigError(format!("更新托盘菜单失败: {}", e))
+        })?;
+    }
+
+    Ok(())
+}
+
+/// 通知所有窗口语言已变更
+pub fn emit_language_changed(app: &AppHandle, language: &str) {
+    let effective_lang = resolve_language(language);
+    if let Err(e) = app.emit("language-changed", &effective_lang) {
+        log::error!("广播语言变更事件失败: {}", e);
+    }
 }

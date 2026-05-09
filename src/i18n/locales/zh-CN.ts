@@ -37,6 +37,11 @@ export default {
   // 设置页面
   settings: {
     title: '设置',
+    languageConfig: '界面语言',
+    language: '语言',
+    languageAuto: '跟随系统',
+    languageZhCN: '简体中文',
+    languageEnUS: 'English',
     apiConfig: 'API 配置',
     apiBaseUrl: 'API 地址',
     apiKey: 'API 密钥',
