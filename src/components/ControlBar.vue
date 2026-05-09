@@ -31,6 +31,9 @@
       <!-- 复制译文 -->
       <button class="btn" @click="$emit('copyTranslation')">{{ t('controlBar.copyTranslation') }}</button>
 
+      <!-- 重新翻译（强制调用API，跳过缓存） -->
+      <button class="btn" @click="$emit('retranslate')">{{ t('controlBar.retranslate') }}</button>
+
       <!-- 原文/译文切换 -->
       <button class="btn" @click="$emit('toggleOriginal')">
         {{ showOriginal ? t('controlBar.showTranslation') : t('controlBar.showOriginal') }}
@@ -66,6 +69,8 @@ defineProps<{
 defineEmits<{
   /** 翻译按钮点击 */
   translate: []
+  /** 重新翻译按钮点击（强制调用API，跳过缓存） */
+  retranslate: []
   /** 复制原文按钮点击 */
   copyOriginal: []
   /** 复制译文按钮点击 */

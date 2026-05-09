@@ -14,13 +14,14 @@ export default {
 
   // Control bar
   controlBar: {
-    translate: 'AI Translate',
-    retranslate: 'Retry',
+    translate: 'Translate',
+    retranslate: 'Re-translate',
     translating: 'Translating...',
     copyTranslation: 'Copy Translation',
     copyOriginal: 'Copy Original',
     showOriginal: 'Show Original',
     showTranslation: 'Show Translation',
+    cacheHit: 'From cache',
   },
 
   // Overlay

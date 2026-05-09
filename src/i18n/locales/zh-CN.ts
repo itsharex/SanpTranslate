@@ -14,7 +14,7 @@ export default {
 
   // 控制栏
   controlBar: {
-    translate: 'AI翻译',
+    translate: '翻译',
     retranslate: '重新翻译',
     translating: '翻译中...',
     copyTranslation: '复制译文',

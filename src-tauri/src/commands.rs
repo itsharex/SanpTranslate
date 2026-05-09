@@ -163,8 +163,12 @@ pub fn store_pin_image(label: String, image_data: String, app: tauri::AppHandle)
 pub async fn translate_image(
     image_data: String,
     target_language: String,
+    force_retranslate: Option<bool>,
     app: tauri::AppHandle,
 ) -> Result<crate::translate::TranslateResult, String> {
+    // 是否强制重新翻译（跳过历史缓存）
+    let skip_cache = force_retranslate.unwrap_or(false);
+
     // 加载配置
     let config_manager = crate::config::ConfigManager::new(&app).map_err(|e| e.to_string())?;
     let config = config_manager.load().map_err(|e| e.to_string())?;
@@ -201,8 +205,8 @@ pub async fn translate_image(
 
     log::info!("[CMD] OCR识别完成，共 {} 个文字块", ocr_blocks.len());
 
-    // ===== 第二步：查找历史缓存 =====
-    {
+    // ===== 第二步：查找历史缓存（非强制重新翻译时才查找） =====
+    if !skip_cache {
         let history_service = app.state::<std::sync::Mutex<crate::history::HistoryService>>();
         let service = history_service.lock().map_err(|e| e.to_string())?;
         if let Some((id, blocks_json)) = service.find_by_ocr_text(&ocr_text, &target_language)
@@ -215,6 +219,8 @@ pub async fn translate_image(
                 log::warn!("[CMD] 历史缓存 blocks_json 解析失败，重新翻译");
             }
         }
+    } else {
+        log::info!("[CMD] 强制重新翻译，跳过历史缓存查找");
     }
 
     // ===== 第三步：未命中缓存，调用 API 翻译（使用已有 OCR 结果，避免重复 OCR） =====

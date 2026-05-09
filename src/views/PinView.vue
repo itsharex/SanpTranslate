@@ -26,6 +26,7 @@
           :error-message="errorMessage"
           :from-cache="fromCache"
           @translate="onTranslate"
+          @retranslate="onRetranslate"
           @copy-original="onCopyOriginal"
           @copy-translation="onCopyTranslation"
           @toggle-original="onToggleOriginal"
@@ -401,16 +402,26 @@ async function onDoubleClick(event: MouseEvent) {
 
 // 调用后端翻译命令
 async function onTranslate() {
+  await doTranslate(false)
+}
+
+// 强制重新翻译（跳过历史缓存，始终调用API）
+async function onRetranslate() {
+  await doTranslate(true)
+}
+
+// 翻译核心逻辑，forceRetranslate 为 true 时跳过缓存
+async function doTranslate(forceRetranslate: boolean) {
   translateStatus.value = 'translating'
   errorMessage.value = ''
 
   try {
     // 获取配置以确定目标语言
     const config = await getConfig()
-    logger.info(TAG, `开始翻译，目标语言=${config.target_language}`)
+    logger.info(TAG, `开始翻译，目标语言=${config.target_language}，强制重新翻译=${forceRetranslate}`)
 
     // 调用翻译命令
-    const result = await translateImage(rawBase64Data, config.target_language)
+    const result = await translateImage(rawBase64Data, config.target_language, forceRetranslate)
 
     if (!result.blocks || result.blocks.length === 0) {
       logger.info(TAG, '翻译结果为空，回到空闲状态')

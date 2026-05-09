@@ -147,12 +147,13 @@ export async function storePinImage(label: string, imageData: string): Promise<v
   return invoke('store_pin_image', { label, imageData })
 }
 
-/** 翻译图像，返回翻译结果 */
+/** 翻译图像，返回翻译结果；forceRetranslate 为 true 时跳过历史缓存，强制调用 API */
 export async function translateImage(
   imageData: string,
-  targetLanguage: string
+  targetLanguage: string,
+  forceRetranslate: boolean = false
 ): Promise<TranslateResult> {
-  return invoke<TranslateResult>('translate_image', { imageData, targetLanguage })
+  return invoke<TranslateResult>('translate_image', { imageData, targetLanguage, forceRetranslate })
 }
 
 /** 获取 API 密钥（从系统密钥环读取） */
