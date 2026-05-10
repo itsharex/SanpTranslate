@@ -25,12 +25,34 @@
                 />
               </n-form-item>
               <n-form-item :label="t('settings.apiKey')">
-                <n-input
-                  v-model:value="formData.api_key"
-                  type="password"
-                  show-password-on="click"
-                  :placeholder="hasApiKey ? '••••••••' : t('settings.apiKeyPlaceholder')"
-                />
+                <n-space align="center" :size="8" style="width: 100%">
+                  <n-input
+                    v-model:value="formData.api_key"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="hasApiKey ? '••••••••' : t('settings.apiKeyPlaceholder')"
+                    style="flex: 1"
+                  />
+                  <n-button
+                    v-if="hasApiKey"
+                    size="small"
+                    type="error"
+                    @click="onDeleteApiKey"
+                    :loading="deleting"
+                  >
+                    {{ t('settings.deleteApiKey') }}
+                  </n-button>
+                  <n-tooltip trigger="hover" v-if="hasApiKey">
+                    <template #trigger>
+                      <n-icon size="18" color="#888">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                      </n-icon>
+                    </template>
+                    {{ t('settings.apiKeyStoredInKeyring') }}
+                  </n-tooltip>
+                </n-space>
               </n-form-item>
               <n-form-item :label="t('settings.model')">
                 <n-input
@@ -76,6 +98,15 @@
             </n-form>
           </n-card>
 
+          <!-- 配置文件路径提示 -->
+          <n-card :title="t('settings.configFilePath')" size="small">
+            <n-space align="center" :size="8">
+              <n-text code style="font-size: 12px; word-break: break-all; flex: 1">
+                {{ configPath || t('common.loading') }}
+              </n-text>
+            </n-space>
+          </n-card>
+
           <!-- 操作按钮 -->
           <n-space justify="center">
             <n-button type="primary" @click="onSave" :loading="saving">
@@ -105,18 +136,21 @@ import {
   NButton,
   NSpace,
   NSpin,
+  NText,
+  NTooltip,
+  NIcon,
   createDiscreteApi,
 } from 'naive-ui'
 import { useConfigStore } from '@/stores/configStore'
-import { testApiConnection, type AppConfig } from '@/utils/tauri'
+import { testApiConnection, deleteApiKey, getConfigPath, type AppConfig } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
 import ShortcutInput from '@/components/ShortcutInput.vue'
 
 const TAG = 'SettingsView'
 const { t, locale } = useI18n()
 
-// 创建独立的 message 实例，配合深色主题（无需 NMessageProvider 包裹）
-const { message } = createDiscreteApi(['message'], {
+// 创建独立的 message 和 dialog 实例，配合深色主题（无需 NMessageProvider/NDialogProvider 包裹）
+const { message, dialog } = createDiscreteApi(['message', 'dialog'], {
   configProviderProps: {
     theme: darkTheme,
   },
@@ -143,6 +177,8 @@ const formData = reactive({
 const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
+const deleting = ref(false)
+const configPath = ref('')
 
 // 是否已有 API 密钥（从 keyring 读取）
 const hasApiKey = computed(() => !!configStore.apiKey)
@@ -269,20 +305,50 @@ async function onTestConnection() {
   }
 }
 
+/** 删除 API 密钥 */
+async function onDeleteApiKey() {
+  dialog.warning({
+    title: t('common.confirm'),
+    content: t('settings.confirmDeleteApiKey'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      deleting.value = true
+      try {
+        await deleteApiKey()
+        // 清空 store 中的密钥
+        configStore.apiKey = null
+        message.success(t('settings.apiKeyDeleted'))
+        logger.info(TAG, 'API 密钥已删除')
+      } catch (err) {
+        message.error(`${t('settings.deleteApiKeyFailed')}: ${err}`)
+        logger.error(TAG, `删除 API 密钥失败: ${err}`)
+      } finally {
+        deleting.value = false
+      }
+    },
+  })
+}
+
 // 页面加载时初始化配置数据
 onMounted(async () => {
   loading.value = true
   try {
-    // 并行加载配置和 API 密钥
-    await Promise.all([
+    // 并行加载配置、API 密钥和配置文件路径
+    const [, , path] = await Promise.all([
       configStore.loadConfig(),
       configStore.loadApiKey(),
+      getConfigPath(),
     ])
 
     // 将加载的配置填充到表单
     if (configStore.config) {
       populateForm(configStore.config)
     }
+
+    // 保存配置文件路径
+    configPath.value = path
+
     logger.info(TAG, '设置页面初始化完成')
   } catch (err) {
     message.error(`${t('settings.loadFailed')}: ${err}`)

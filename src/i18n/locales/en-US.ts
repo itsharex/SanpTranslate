@@ -67,6 +67,12 @@ export default {
     fillApiKey: 'Please configure API key first',
     connectionSuccess: 'Connection successful',
     connectionFailed: 'Connection failed',
+    configFilePath: 'Config File Path',
+    deleteApiKey: 'Delete Key',
+    confirmDeleteApiKey: 'Are you sure you want to delete the saved API key?',
+    apiKeyDeleted: 'API key deleted',
+    deleteApiKeyFailed: 'Failed to delete API key',
+    apiKeyStoredInKeyring: 'Key is securely stored in system keyring',
     // Language options
     langZhCN: 'Simplified Chinese',
     langZhTW: 'Traditional Chinese',

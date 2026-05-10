@@ -344,6 +344,24 @@ pub fn set_api_key(key: String, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn delete_api_key(app: tauri::AppHandle) -> Result<(), String> {
+    log::info!("[CMD] delete_api_key: 正在从密钥环删除 API 密钥...");
+    let config_manager = crate::config::ConfigManager::new(&app).map_err(|e| e.to_string())?;
+    config_manager.delete_api_key().map_err(|e| {
+        log::error!("[CMD] delete_api_key: 删除失败: {}", e);
+        e.to_string()
+    })?;
+    log::info!("[CMD] delete_api_key: API 密钥删除成功");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_config_path(app: tauri::AppHandle) -> Result<String, String> {
+    let config_manager = crate::config::ConfigManager::new(&app).map_err(|e| e.to_string())?;
+    Ok(config_manager.get_config_path().to_string_lossy().to_string())
+}
+
+#[tauri::command]
 pub async fn test_api_connection(
     api_base_url: String,
     api_key: String,

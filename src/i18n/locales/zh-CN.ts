@@ -67,6 +67,12 @@ export default {
     fillApiKey: '请先配置 API 密钥',
     connectionSuccess: '连接成功',
     connectionFailed: '连接失败',
+    configFilePath: '配置文件路径',
+    deleteApiKey: '删除密钥',
+    confirmDeleteApiKey: '确定要删除已保存的 API 密钥吗？',
+    apiKeyDeleted: 'API 密钥已删除',
+    deleteApiKeyFailed: '删除 API 密钥失败',
+    apiKeyStoredInKeyring: '密钥已安全保存在系统密钥环中',
     // 目标语言选项
     langZhCN: '中文简体',
     langZhTW: '中文繁体',

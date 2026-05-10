@@ -43,6 +43,8 @@ pub fn run() {
             commands::translate_image,
             commands::get_api_key,
             commands::set_api_key,
+            commands::delete_api_key,
+            commands::get_config_path,
             commands::test_api_connection,
             commands::get_history_list,
             commands::get_history_detail,

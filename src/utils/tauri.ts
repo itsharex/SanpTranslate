@@ -168,6 +168,16 @@ export async function setApiKey(key: string): Promise<void> {
   return invoke('set_api_key', { key })
 }
 
+/** 删除 API 密钥（从系统密钥环删除） */
+export async function deleteApiKey(): Promise<void> {
+  return invoke('delete_api_key')
+}
+
+/** 获取配置文件路径 */
+export async function getConfigPath(): Promise<string> {
+  return invoke<string>('get_config_path')
+}
+
 /** 测试 API 连接是否可用 */
 export async function testApiConnection(
   apiBaseUrl: string,

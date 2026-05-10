@@ -124,6 +124,11 @@ impl ConfigManager {
         &self.config_dir
     }
 
+    /// 获取配置文件完整路径（用于前端显示）
+    pub fn get_config_path(&self) -> &PathBuf {
+        &self.config_path
+    }
+
     /// 从系统密钥环读取 API 密钥
     /// 密钥不存在时返回 Ok(None)，密钥环不可用时返回友好错误
     pub fn get_api_key(&self) -> Result<Option<String>, AppError> {
