@@ -9,17 +9,20 @@ use crate::error::AppError;
 pub struct CurrentShortcuts {
     pub capture: Shortcut,
     pub pin_clipboard: Shortcut,
+    pub text_translate: Shortcut,
 }
 
 /// 注册全局快捷键（应用启动时调用）
 pub fn register_hotkeys(app: &tauri::AppHandle, config: &ShortcutConfig) -> Result<(), AppError> {
     let capture_shortcut = parse_shortcut(&config.capture)?;
     let pin_clipboard_shortcut = parse_shortcut(&config.pin_clipboard)?;
+    let text_translate_shortcut = parse_shortcut(&config.text_translate)?;
 
     // 使用 Arc<Mutex> 存储快捷键，闭包直接捕获 Arc 避免生命周期问题
     let shortcuts = Arc::new(Mutex::new(CurrentShortcuts {
         capture: capture_shortcut,
         pin_clipboard: pin_clipboard_shortcut,
+        text_translate: text_translate_shortcut,
     }));
 
     // 存入应用状态，供 reregister_hotkeys 更新
@@ -38,16 +41,20 @@ pub fn register_hotkeys(app: &tauri::AppHandle, config: &ShortcutConfig) -> Resu
                 // 通过 Arc 直接访问，将比较结果复制出来后再调用处理函数
                 let is_capture;
                 let is_pin;
+                let is_text_translate;
                 {
                     let current = shortcuts_handler.lock().unwrap();
                     is_capture = shortcut == &current.capture;
                     is_pin = shortcut == &current.pin_clipboard;
+                    is_text_translate = shortcut == &current.text_translate;
                 }
 
                 if is_capture {
                     handle_capture_hotkey(app);
                 } else if is_pin {
                     handle_pin_clipboard_hotkey(app);
+                } else if is_text_translate {
+                    handle_text_translate_hotkey(app);
                 }
             })
             .build(),
@@ -62,6 +69,10 @@ pub fn register_hotkeys(app: &tauri::AppHandle, config: &ShortcutConfig) -> Resu
         .register(pin_clipboard_shortcut)
         .map_err(|e| AppError::ConfigError(format!("注册剪贴板贴图快捷键失败: {}", e)))?;
 
+    app.global_shortcut()
+        .register(text_translate_shortcut)
+        .map_err(|e| AppError::ConfigError(format!("注册文本翻译快捷键失败: {}", e)))?;
+
     Ok(())
 }
 
@@ -69,6 +80,7 @@ pub fn register_hotkeys(app: &tauri::AppHandle, config: &ShortcutConfig) -> Resu
 pub fn reregister_hotkeys(app: &tauri::AppHandle, new_config: &ShortcutConfig) -> Result<(), AppError> {
     let new_capture = parse_shortcut(&new_config.capture)?;
     let new_pin = parse_shortcut(&new_config.pin_clipboard)?;
+    let new_text_translate = parse_shortcut(&new_config.text_translate)?;
 
     // 注销所有已注册的快捷键
     app.global_shortcut()
@@ -84,6 +96,10 @@ pub fn reregister_hotkeys(app: &tauri::AppHandle, new_config: &ShortcutConfig) -
         .register(new_pin)
         .map_err(|e| AppError::ConfigError(format!("注册剪贴板贴图快捷键失败: {}", e)))?;
 
+    app.global_shortcut()
+        .register(new_text_translate)
+        .map_err(|e| AppError::ConfigError(format!("注册文本翻译快捷键失败: {}", e)))?;
+
     // 通过 Arc 更新状态中的快捷键，使处理器能匹配新的快捷键
     let shortcuts = app.state::<Arc<Mutex<CurrentShortcuts>>>();
     let mut current = shortcuts
@@ -91,11 +107,13 @@ pub fn reregister_hotkeys(app: &tauri::AppHandle, new_config: &ShortcutConfig) -
         .map_err(|e| AppError::ConfigError(format!("锁定快捷键状态失败: {}", e)))?;
     current.capture = new_capture;
     current.pin_clipboard = new_pin;
+    current.text_translate = new_text_translate;
 
     log::info!(
-        "[HOTKEY] 快捷键已更新: 截图={}, 剪贴板贴图={}",
+        "[HOTKEY] 快捷键已更新: 截图={}, 剪贴板贴图={}, 文本翻译={}",
         new_config.capture,
-        new_config.pin_clipboard
+        new_config.pin_clipboard,
+        new_config.text_translate
     );
 
     Ok(())
@@ -191,6 +209,15 @@ fn handle_pin_clipboard_hotkey(app: &tauri::AppHandle) {
 
     if let Err(e) = result {
         log::error!("[HOTKEY] 剪贴板贴图快捷键处理失败: {}", e);
+    }
+}
+
+/// 文本翻译快捷键处理：创建文本翻译窗口
+fn handle_text_translate_hotkey(app: &tauri::AppHandle) {
+    log::info!("[HOTKEY] 文本翻译快捷键触发");
+
+    if let Err(e) = crate::window::create_text_translate_window(app) {
+        log::error!("[HOTKEY] 创建文本翻译窗口失败: {}", e);
     }
 }
 

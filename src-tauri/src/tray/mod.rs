@@ -22,6 +22,7 @@ impl Default for TrayState {
 struct TrayText {
     capture_translate: String,
     pin_clipboard: String,
+    text_translate: String,
     history: String,
     settings: String,
     restart: String,
@@ -37,6 +38,7 @@ fn get_tray_text(language: &str, shortcuts: &ShortcutConfig) -> TrayText {
         TrayText {
             capture_translate: format!("框选截图翻译  {}", shortcuts.capture),
             pin_clipboard: format!("从剪贴板贴图  {}", shortcuts.pin_clipboard),
+            text_translate: format!("文本翻译  {}", shortcuts.text_translate),
             history: "截图与翻译历史".to_string(),
             settings: "设置".to_string(),
             restart: "重新启动".to_string(),
@@ -46,6 +48,7 @@ fn get_tray_text(language: &str, shortcuts: &ShortcutConfig) -> TrayText {
         TrayText {
             capture_translate: format!("Capture & Translate  {}", shortcuts.capture),
             pin_clipboard: format!("Pin from Clipboard  {}", shortcuts.pin_clipboard),
+            text_translate: format!("Text Translate  {}", shortcuts.text_translate),
             history: "Translation History".to_string(),
             settings: "Settings".to_string(),
             restart: "Restart".to_string(),
@@ -70,6 +73,13 @@ fn build_tray_menu(app: &AppHandle, text: &TrayText) -> Result<Menu<tauri::Wry>,
         true,
         None::<&str>,
     )?;
+    let text_translate_item = MenuItem::with_id(
+        app,
+        "text_translate",
+        &text.text_translate,
+        true,
+        None::<&str>,
+    )?;
     let separator1 = PredefinedMenuItem::separator(app)?;
     let history_item = MenuItem::with_id(app, "history", &text.history, true, None::<&str>)?;
     let separator2 = PredefinedMenuItem::separator(app)?;
@@ -89,6 +99,7 @@ fn build_tray_menu(app: &AppHandle, text: &TrayText) -> Result<Menu<tauri::Wry>,
         &[
             &capture_item,
             &pin_clipboard_item,
+            &text_translate_item,
             &separator1,
             &history_item,
             &separator2,
@@ -148,6 +159,11 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig, language: &str) 
                 })() {
                     Ok(_) => {}
                     Err(e) => log::error!("剪贴板贴图失败: {}", e),
+                }
+            }
+            "text_translate" => {
+                if let Err(e) = crate::window::create_text_translate_window(app) {
+                    log::error!("创建文本翻译窗口失败: {}", e);
                 }
             }
             "history" => {

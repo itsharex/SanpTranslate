@@ -31,6 +31,16 @@ pub struct TranslateResult {
     pub from_cache: bool,
 }
 
+/// 纯文本翻译结果
+#[derive(Debug, Clone, Serialize)]
+pub struct TextTranslateResult {
+    /// 翻译后的文本
+    pub translated_text: String,
+    /// 是否来自历史缓存（未调用API）
+    #[serde(default)]
+    pub from_cache: bool,
+}
+
 /// 使用预先提取的OCR块进行翻译（跳过OCR步骤，避免重复识别）
 pub async fn translate_with_ocr_blocks(
     ocr_blocks: Vec<OcrBlock>,
@@ -54,7 +64,7 @@ pub async fn translate_with_ocr_blocks(
     log::debug!("[TRANSLATE] 使用预提取OCR文本（{}段落）: {}", ocr_blocks.len(), all_text);
 
     // 调用文本模型翻译，要求按段落返回
-    let translated_text = call_text_api(api_base_url, api_key, model, &all_text, target_language).await?;
+    let translated_text = call_text_api(api_base_url, api_key, model, &all_text, target_language, true).await?;
 
     // 将翻译结果按空行(\n\n)拆分为段落，与OCR块一一对应
     let translated_paragraphs: Vec<&str> = translated_text
@@ -99,14 +109,23 @@ pub async fn translate_with_ocr_blocks(
 }
 
 /// 调用文本模型API（OpenAI兼容格式）
+/// is_ocr_mode 为 true 时使用 OCR 多段落翻译提示词，为 false 时使用纯文本翻译提示词
 pub async fn call_text_api(
     api_base_url: &str,
     api_key: &str,
     model: &str,
     text: &str,
     target_language: &str,
+    is_ocr_mode: bool,
 ) -> Result<String, AppError> {
     let url = format!("{}/chat/completions", api_base_url.trim_end_matches('/'));
+
+    // 根据翻译模式选择不同的系统提示词
+    let system_prompt = if is_ocr_mode {
+        "你是翻译助手。用户会发送多段文本，段落之间用空行分隔。请逐段翻译，每段翻译结果单独用空行分隔，段落数量必须与原文完全一致。保持原文中的换行结构不变。不要合并、拆分或增减段落。"
+    } else {
+        "你是翻译助手。请将用户发送的文本翻译为指定语言，保持原文的格式和换行。"
+    };
 
     // 构建文本模型请求体
     let request_body = serde_json::json!({
@@ -114,7 +133,7 @@ pub async fn call_text_api(
         "messages": [
             {
                 "role": "system",
-                "content": "你是翻译助手。用户会发送多段文本，段落之间用空行分隔。请逐段翻译，每段翻译结果单独用空行分隔，段落数量必须与原文完全一致。保持原文中的换行结构不变。不要合并、拆分或增减段落。"
+                "content": system_prompt
             },
             {
                 "role": "user",

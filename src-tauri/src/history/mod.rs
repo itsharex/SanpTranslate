@@ -20,10 +20,10 @@ const THUMBNAIL_QUALITY: u8 = 80;
 pub struct HistoryEntry {
     /// 记录 ID
     pub id: i64,
-    /// 原图数据（Base64 编码）
+    /// 原图数据（Base64 编码），文本翻译时为 None
     pub image_data: Option<String>,
-    /// 缩略图数据（Base64 编码的 JPEG）
-    pub thumbnail: String,
+    /// 缩略图数据（Base64 编码的 JPEG），文本翻译时为 None
+    pub thumbnail: Option<String>,
     /// OCR 识别原文
     pub ocr_text: Option<String>,
     /// 翻译后文本
@@ -37,8 +37,8 @@ pub struct HistoryEntry {
 pub struct HistoryListItem {
     /// 记录 ID
     pub id: i64,
-    /// 缩略图数据（Base64 编码的 JPEG）
-    pub thumbnail: String,
+    /// 缩略图数据（Base64 编码的 JPEG），文本翻译时为 None
+    pub thumbnail: Option<String>,
     /// 翻译摘要（截取前 50 字符）
     pub summary: String,
     /// 创建时间（YYYY-MM-DD HH:MM:SS 格式）
@@ -47,8 +47,8 @@ pub struct HistoryListItem {
 
 /// 新建历史记录的输入数据
 pub struct NewHistoryEntry {
-    /// 原始图像数据（PNG/JPEG 等格式）
-    pub image_data: Vec<u8>,
+    /// 原始图像数据（PNG/JPEG 等格式），文本翻译时为 None
+    pub image_data: Option<Vec<u8>>,
     /// OCR 识别原文
     pub ocr_text: Option<String>,
     /// 翻译后文本
@@ -78,8 +78,8 @@ impl HistoryService {
         db.execute_batch(
             "CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                image_blob BLOB NOT NULL,
-                thumbnail BLOB NOT NULL,
+                image_blob BLOB,
+                thumbnail BLOB,
                 ocr_text TEXT,
                 translated_text TEXT NOT NULL,
                 target_language TEXT DEFAULT '',
@@ -95,17 +95,76 @@ impl HistoryService {
         let _ = db.execute("ALTER TABLE history ADD COLUMN target_language TEXT DEFAULT ''", []);
         let _ = db.execute("ALTER TABLE history ADD COLUMN blocks_json TEXT DEFAULT ''", []);
 
+        // 迁移：将 NOT NULL 的 image_blob/thumbnail 列改为可空
+        // SQLite 不支持 ALTER COLUMN，需要重建表
+        Self::migrate_nullable_columns(&db)?;
+
         log::info!("[HISTORY] 数据库初始化完成: {:?}", db_path);
 
         Ok(HistoryService { db })
     }
 
+    /// 迁移：检查 image_blob/thumbnail 列是否为 NOT NULL，如果是则重建表使其可空
+    fn migrate_nullable_columns(db: &Connection) -> Result<(), AppError> {
+        // 检查 image_blob 列的 notnull 属性
+        let mut stmt = db.prepare("PRAGMA table_info(history)")?;
+        let columns: Vec<(i32, String, String, i32, Option<String>, i32)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // 查找 image_blob 和 thumbnail 列是否为 NOT NULL (notnull = 1)
+        let image_blob_notnull = columns.iter().any(|c| c.1 == "image_blob" && c.3 == 1);
+        let thumbnail_notnull = columns.iter().any(|c| c.1 == "thumbnail" && c.3 == 1);
+
+        if !image_blob_notnull && !thumbnail_notnull {
+            // 列已经是可空的，无需迁移
+            return Ok(());
+        }
+
+        log::info!("[HISTORY] 开始迁移：将 image_blob/thumbnail 列改为可空");
+
+        // 重建表：SQLite 不支持 ALTER COLUMN，需要创建新表并复制数据
+        db.execute_batch(
+            "CREATE TABLE history_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_blob BLOB,
+                thumbnail BLOB,
+                ocr_text TEXT,
+                translated_text TEXT NOT NULL,
+                target_language TEXT DEFAULT '',
+                blocks_json TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+
+            INSERT INTO history_new (id, image_blob, thumbnail, ocr_text, translated_text, target_language, blocks_json, created_at)
+                SELECT id, image_blob, thumbnail, ocr_text, translated_text, target_language, blocks_json, created_at FROM history;
+
+            DROP TABLE history;
+
+            ALTER TABLE history_new RENAME TO history;
+
+            CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at DESC);"
+        )?;
+
+        log::info!("[HISTORY] 迁移完成：image_blob/thumbnail 列已改为可空");
+        Ok(())
+    }
+
     /// 添加一条历史记录
     pub fn add_entry(&self, entry: NewHistoryEntry) -> Result<i64, AppError> {
-        // 原图存储为 Base64
-        let image_base64 = base64::engine::general_purpose::STANDARD.encode(&entry.image_data);
-        // 生成缩略图
-        let thumbnail_bytes = generate_thumbnail(&entry.image_data)?;
+        // 原图存储为 Base64（文本翻译时无图片）
+        let image_base64 = entry.image_data.as_ref().map(|data| {
+            base64::engine::general_purpose::STANDARD.encode(data)
+        });
+        // 生成缩略图（有图片时才生成）
+        let thumbnail_bytes = if let Some(ref data) = entry.image_data {
+            Some(generate_thumbnail(data)?)
+        } else {
+            None
+        };
 
         // 获取当前时间戳
         let created_at = chrono_now_iso8601();
@@ -117,8 +176,8 @@ impl HistoryService {
         )?;
 
         let id = self.db.last_insert_rowid();
-        log::info!("[HISTORY] 添加历史记录: id={}, ocr_text长度={:?}, translated_text长度={}", 
-            id, entry.ocr_text.as_ref().map(|t| t.len()), entry.translated_text.len());
+        log::info!("[HISTORY] 添加历史记录: id={}, ocr_text长度={:?}, translated_text长度={}, has_image={}", 
+            id, entry.ocr_text.as_ref().map(|t| t.len()), entry.translated_text.len(), entry.image_data.is_some());
 
         // 检查总记录数，超过上限时删除最旧的记录
         self.enforce_max_history()?;
@@ -134,12 +193,18 @@ impl HistoryService {
 
         let items = stmt.query_map(params![limit], |row| {
             let id: i64 = row.get(0)?;
-            let thumbnail_bytes: Vec<u8> = row.get(1)?;
+            let thumbnail_bytes: Option<Vec<u8>> = row.get(1)?;
             let translated_text: String = row.get(2)?;
             let created_at: String = row.get(3)?;
 
-            // 缩略图转 Base64
-            let thumbnail = base64::engine::general_purpose::STANDARD.encode(&thumbnail_bytes);
+            // 缩略图转 Base64（None 表示无图片的文本翻译记录）
+            let thumbnail = thumbnail_bytes.and_then(|bytes| {
+                if bytes.is_empty() {
+                    None
+                } else {
+                    Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
+                }
+            });
 
             // 翻译摘要：截取前 50 个字符（按 Unicode 字符边界截取）
             let summary = truncate_str(&translated_text, 50);
@@ -164,12 +229,19 @@ impl HistoryService {
         let entry = stmt.query_row(params![id], |row| {
             let id: i64 = row.get(0)?;
             let image_blob: Option<String> = row.get(1)?;
-            let thumbnail_bytes: Vec<u8> = row.get(2)?;
+            let thumbnail_bytes: Option<Vec<u8>> = row.get(2)?;
             let ocr_text: Option<String> = row.get(3)?;
             let translated_text: String = row.get(4)?;
             let created_at: String = row.get(5)?;
 
-            let thumbnail = base64::engine::general_purpose::STANDARD.encode(&thumbnail_bytes);
+            // 缩略图转 Base64（None 表示无图片的文本翻译记录）
+            let thumbnail = thumbnail_bytes.and_then(|bytes| {
+                if bytes.is_empty() {
+                    None
+                } else {
+                    Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
+                }
+            });
 
             Ok(HistoryEntry {
                 id,

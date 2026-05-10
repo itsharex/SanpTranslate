@@ -54,6 +54,7 @@ export default {
     shortcutConfig: '快捷键配置',
     captureShortcut: '截图快捷键',
     pinClipboardShortcut: '剪贴板贴图',
+    textTranslateShortcut: '文本翻译',
     pressShortcut: '请按下快捷键...',
     clickToSet: '点击设置快捷键',
     restoreDefaults: '恢复默认',
@@ -115,9 +116,21 @@ export default {
   tray: {
     captureTranslate: '框选截图翻译',
     pinFromClipboard: '从剪贴板贴图',
+    textTranslate: '文本翻译',
     history: '截图与翻译历史',
     settings: '设置',
     quit: '退出',
+  },
+
+  // 文本翻译
+  textTranslate: {
+    title: '文本翻译',
+    inputPlaceholder: '输入或粘贴要翻译的文本...',
+    shortcutHint: 'Ctrl + Enter 快捷翻译',
+    translate: '翻译',
+    retranslate: '重新翻译',
+    translating: '翻译中...',
+    copyTranslation: '复制译文',
   },
 
   // 错误信息

@@ -9,7 +9,13 @@
         draggable="false"
       />
       <div v-else class="thumbnail-placeholder">
-        <span>?</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
       </div>
     </div>
 
@@ -58,7 +64,7 @@ defineEmits<{
   delete: [id: number]
 }>()
 
-// 缩略图 URL（Base64 转 data URI）
+// 缩略图 URL（Base64 转 data URI，文本翻译记录无缩略图）
 const thumbnailUrl = computed(() => {
   if (props.entry.thumbnail) {
     return `data:image/jpeg;base64,${props.entry.thumbnail}`
@@ -102,7 +108,9 @@ const thumbnailUrl = computed(() => {
 
 .thumbnail-placeholder {
   color: rgba(255, 255, 255, 0.2);
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .item-content {

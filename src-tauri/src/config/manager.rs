@@ -14,6 +14,8 @@ pub struct ShortcutConfig {
     pub capture: String,
     /// 固定到剪贴板快捷键
     pub pin_clipboard: String,
+    /// 文本翻译快捷键
+    pub text_translate: String,
 }
 
 impl Default for ShortcutConfig {
@@ -21,6 +23,7 @@ impl Default for ShortcutConfig {
         ShortcutConfig {
             capture: "Ctrl+Alt+L".to_string(),
             pin_clipboard: "Ctrl+Alt+P".to_string(),
+            text_translate: "Ctrl+Alt+M".to_string(),
         }
     }
 }

@@ -21,6 +21,11 @@ const routes = [
     name: "history",
     component: () => import("@/views/HistoryView.vue"),
   },
+  {
+    path: "/text-translate",
+    name: "text-translate",
+    component: () => import("@/views/TextTranslateView.vue"),
+  },
 ];
 
 const router = createRouter({

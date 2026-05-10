@@ -21,6 +21,8 @@ export interface ShortcutConfig {
   capture: string
   /** 从剪贴板贴图快捷键 */
   pin_clipboard: string
+  /** 文本翻译快捷键 */
+  text_translate: string
 }
 
 /** 区域裁剪结果，包含图像数据和窗口位置信息 */
@@ -79,12 +81,20 @@ export interface TranslateResult {
   from_cache: boolean
 }
 
+/** 纯文本翻译结果，与后端 TextTranslateResult 对应 */
+export interface TextTranslateResult {
+  /** 翻译后的文本 */
+  translated_text: string
+  /** 是否来自历史缓存（未调用API） */
+  from_cache: boolean
+}
+
 /** 历史记录列表条目 */
 export interface HistoryListItem {
   /** 记录 ID */
   id: number
-  /** 缩略图数据（Base64 编码的 JPEG） */
-  thumbnail: string
+  /** 缩略图数据（Base64 编码的 JPEG），文本翻译时为 null */
+  thumbnail: string | null
   /** 翻译摘要 */
   summary: string
   /** 创建时间（ISO 8601 格式） */
@@ -95,10 +105,10 @@ export interface HistoryListItem {
 export interface HistoryEntry {
   /** 记录 ID */
   id: number
-  /** 原图数据（Base64 编码） */
+  /** 原图数据（Base64 编码），文本翻译时为 null */
   image_data: string | null
-  /** 缩略图数据（Base64 编码的 JPEG） */
-  thumbnail: string
+  /** 缩略图数据（Base64 编码的 JPEG），文本翻译时为 null */
+  thumbnail: string | null
   /** OCR 识别原文 */
   ocr_text: string | null
   /** 翻译后文本 */
@@ -157,6 +167,15 @@ export async function translateImage(
   forceRetranslate: boolean = false
 ): Promise<TranslateResult> {
   return invoke<TranslateResult>('translate_image', { imageData, targetLanguage, forceRetranslate })
+}
+
+/** 纯文本翻译，返回翻译结果；forceRetranslate 为 true 时跳过历史缓存，强制调用 API */
+export async function translateText(
+  text: string,
+  targetLanguage: string,
+  forceRetranslate: boolean = false
+): Promise<TextTranslateResult> {
+  return invoke<TextTranslateResult>('translate_text', { text, targetLanguage, forceRetranslate })
 }
 
 /** 获取 API 密钥（从系统密钥环读取） */

@@ -282,7 +282,7 @@ pub async fn translate_image(
 
         std::thread::spawn(move || {
             match save_translation_history(
-                &app_clone, &image_data_clone, &ocr_text_clone, &translated_text,
+                &app_clone, Some(&image_data_clone), &ocr_text_clone, &translated_text,
                 &target_language_clone, &blocks_json,
             ) {
                 Ok(id) => log::info!("[CMD] 翻译历史已保存, id={}", id),
@@ -297,14 +297,18 @@ pub async fn translate_image(
 /// 保存翻译历史记录到数据库（含目标语言和缓存 JSON）
 fn save_translation_history(
     app: &tauri::AppHandle,
-    image_base64: &str,
+    image_base64: Option<&str>,
     ocr_text: &str,
     translated_text: &str,
     target_language: &str,
     blocks_json: &str,
 ) -> Result<i64, String> {
-    // 将 Base64 图像数据解码为原始字节
-    let image_bytes = STANDARD.decode(image_base64).map_err(|e| format!("Base64解码失败: {}", e))?;
+    // 将 Base64 图像数据解码为原始字节（文本翻译时无图片）
+    let image_bytes = if let Some(data) = image_base64 {
+        Some(STANDARD.decode(data).map_err(|e| format!("Base64解码失败: {}", e))?)
+    } else {
+        None
+    };
 
     let history_service = app.state::<std::sync::Mutex<crate::history::HistoryService>>();
     let service = history_service.lock().map_err(|e| format!("锁定HistoryService失败: {}", e))?;
@@ -507,5 +511,113 @@ pub fn clear_history(app: tauri::AppHandle) -> Result<bool, String> {
     service.clear_all().map(|_| true).map_err(|e| {
         log::error!("[CMD] 清空历史记录失败: {}", e);
         e.to_string()
+    })
+}
+
+/// 纯文本翻译命令：接收文本直接翻译，支持历史缓存
+#[tauri::command]
+pub async fn translate_text(
+    text: String,
+    target_language: String,
+    force_retranslate: Option<bool>,
+    app: tauri::AppHandle,
+) -> Result<crate::translate::TextTranslateResult, String> {
+    let skip_cache = force_retranslate.unwrap_or(false);
+
+    // 加载配置
+    let config_manager = crate::config::ConfigManager::new(&app).map_err(|e| e.to_string())?;
+    let config = config_manager.load().map_err(|e| e.to_string())?;
+
+    let is_zh = crate::config::resolve_language(&config.language) == "zh-CN";
+
+    // 获取 API 密钥
+    log::info!("[CMD] translate_text: 正在从密钥环读取 API 密钥...");
+    let api_key = config_manager.get_api_key().map_err(|e| {
+        log::error!("[CMD] translate_text: 读取 API 密钥失败: {}", e);
+        e.to_string()
+    })?;
+    let api_key = api_key.ok_or_else(|| {
+        log::error!("[CMD] translate_text: API 密钥未配置");
+        if is_zh {
+            "API 密钥未配置，请在设置中配置 API 密钥".to_string()
+        } else {
+            "API key not configured. Please set it in Settings.".to_string()
+        }
+    })?;
+    log::info!("[CMD] translate_text: API 密钥读取成功");
+
+    if text.trim().is_empty() {
+        return Ok(crate::translate::TextTranslateResult {
+            translated_text: String::new(),
+            from_cache: false,
+        });
+    }
+
+    // 查找历史缓存（非强制重新翻译时才查找）
+    if !skip_cache {
+        let history_service = app.state::<std::sync::Mutex<crate::history::HistoryService>>();
+        let service = history_service.lock().map_err(|e| e.to_string())?;
+        if let Some((id, blocks_json)) = service.find_by_ocr_text(&text, &target_language)
+            .map_err(|e| e.to_string())?
+        {
+            // 尝试从 blocks_json 恢复翻译结果
+            if let Ok(blocks) = serde_json::from_str::<Vec<crate::translate::TranslatedBlock>>(&blocks_json) {
+                let translated = blocks.iter().map(|b| b.translated.as_str()).collect::<Vec<_>>().join("\n");
+                log::info!("[CMD] 文本匹配历史缓存(id={})，跳过API翻译", id);
+                return Ok(crate::translate::TextTranslateResult {
+                    translated_text: translated,
+                    from_cache: true,
+                });
+            } else {
+                log::warn!("[CMD] 历史缓存 blocks_json 解析失败，重新翻译");
+            }
+        }
+    } else {
+        log::info!("[CMD] 强制重新翻译，跳过历史缓存查找");
+    }
+
+    // 未命中缓存，调用 API 翻译
+    log::info!("[CMD] translate_text: 未命中缓存，调用翻译 API...");
+    let translated_text = crate::translate::call_text_api(
+        &config.api_base_url,
+        &api_key,
+        &config.model,
+        &text,
+        &target_language,
+        false,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 保存历史记录（无图片）
+    let app_clone = app.clone();
+    let text_clone = text.clone();
+    let translated_clone = translated_text.clone();
+    let target_language_clone = target_language.clone();
+
+    // 构造 blocks_json 用于缓存
+    let block = crate::translate::TranslatedBlock {
+        original: text_clone.clone(),
+        translated: translated_clone.clone(),
+        x: 0.0,
+        y: 0.0,
+        width: 0.0,
+        height: 0.0,
+    };
+    let blocks_json = serde_json::to_string(&vec![block]).map_err(|e| e.to_string())?;
+
+    std::thread::spawn(move || {
+        match save_translation_history(
+            &app_clone, None, &text_clone, &translated_clone,
+            &target_language_clone, &blocks_json,
+        ) {
+            Ok(id) => log::info!("[CMD] 文本翻译历史已保存, id={}", id),
+            Err(e) => log::error!("[CMD] 保存文本翻译历史失败: {}", e),
+        }
+    });
+
+    Ok(crate::translate::TextTranslateResult {
+        translated_text,
+        from_cache: false,
     })
 }

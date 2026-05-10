@@ -49,10 +49,9 @@
         size="medium"
       >
         <div v-if="historyStore.currentDetail" class="detail-content">
-          <!-- 缩略图（点击放大） -->
-          <div class="detail-thumbnail-wrapper" @click="showImagePreview = true" style="cursor: pointer;">
+          <!-- 缩略图（有图片时显示，点击放大） -->
+          <div v-if="detailThumbnailUrl" class="detail-thumbnail-wrapper" @click="showImagePreview = true" style="cursor: pointer;">
             <img
-              v-if="detailThumbnailUrl"
               :src="detailThumbnailUrl"
               class="detail-thumbnail"
               draggable="false"
@@ -146,7 +145,7 @@ const showDetail = ref(false)
 // 图片放大预览状态
 const showImagePreview = ref(false)
 
-// 详情缩略图 URL
+// 详情缩略图 URL（文本翻译记录无缩略图）
 const detailThumbnailUrl = computed(() => {
   if (historyStore.currentDetail?.thumbnail) {
     return `data:image/jpeg;base64,${historyStore.currentDetail.thumbnail}`
@@ -154,13 +153,12 @@ const detailThumbnailUrl = computed(() => {
   return ''
 })
 
-// 详情原图 URL（用于放大预览）
+// 详情原图 URL（用于放大预览，文本翻译记录无原图）
 const detailImageUrl = computed(() => {
   if (historyStore.currentDetail?.image_data) {
     return `data:image/png;base64,${historyStore.currentDetail.image_data}`
   }
-  // 无原图时回退到缩略图（旧数据兼容）
-  return detailThumbnailUrl.value
+  return ''
 })
 
 /** 查看详情 */

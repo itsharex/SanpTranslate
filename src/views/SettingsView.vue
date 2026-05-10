@@ -104,6 +104,12 @@
                   :placeholder="t('settings.clickToSet')"
                 />
               </n-form-item>
+              <n-form-item :label="t('settings.textTranslateShortcut')">
+                <ShortcutInput
+                  v-model="formData.shortcuts_text_translate"
+                  :placeholder="t('settings.clickToSet')"
+                />
+              </n-form-item>
               <n-form-item :label="''">
                 <n-button size="small" @click="onRestoreDefaults">
                   {{ t('settings.restoreDefaults') }}
@@ -176,6 +182,7 @@ const configStore = useConfigStore()
 // 默认快捷键值
 const DEFAULT_CAPTURE_SHORTCUT = 'Ctrl+Alt+L'
 const DEFAULT_PIN_CLIPBOARD_SHORTCUT = 'Ctrl+Alt+P'
+const DEFAULT_TEXT_TRANSLATE_SHORTCUT = 'Ctrl+Alt+M'
 
 // 表单数据（扁平化结构，方便 v-model 双向绑定）
 const formData = reactive({
@@ -186,6 +193,7 @@ const formData = reactive({
   language: 'auto',
   shortcuts_capture: '',
   shortcuts_pin_clipboard: '',
+  shortcuts_text_translate: '',
 })
 
 // 页面状态
@@ -230,6 +238,7 @@ function populateForm(config: AppConfig) {
   formData.language = config.language || 'auto'
   formData.shortcuts_capture = config.shortcuts.capture
   formData.shortcuts_pin_clipboard = config.shortcuts.pin_clipboard
+  formData.shortcuts_text_translate = config.shortcuts.text_translate
   // API 密钥不从 keyring 填充到表单，仅通过占位符提示已有密钥
   formData.api_key = ''
 }
@@ -280,6 +289,7 @@ async function onSave() {
       shortcuts: {
         capture: formData.shortcuts_capture.trim(),
         pin_clipboard: formData.shortcuts_pin_clipboard.trim(),
+        text_translate: formData.shortcuts_text_translate.trim(),
       },
     }
 
@@ -306,6 +316,7 @@ async function onSave() {
 function onRestoreDefaults() {
   formData.shortcuts_capture = DEFAULT_CAPTURE_SHORTCUT
   formData.shortcuts_pin_clipboard = DEFAULT_PIN_CLIPBOARD_SHORTCUT
+  formData.shortcuts_text_translate = DEFAULT_TEXT_TRANSLATE_SHORTCUT
   message.info(t('settings.shortcutsRestored'))
   logger.info(TAG, '快捷键已恢复默认')
 }

@@ -114,6 +114,57 @@ pub fn create_history_window(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+/// 创建文本翻译窗口（单例模式，屏幕下方居中）
+pub fn create_text_translate_window(app: &AppHandle) -> Result<(), AppError> {
+    // 单例模式：如果已存在则聚焦
+    if let Some(window) = app.get_webview_window("text-translate") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    // 读取配置以确定界面语言
+    let language = get_config_language(app);
+    let is_zh = resolve_language(&language) == "zh-CN";
+
+    let monitor = app.primary_monitor()
+        .ok()
+        .flatten()
+        .ok_or_else(|| AppError::ConfigError("获取主显示器信息失败".to_string()))?;
+
+    let scale_factor = monitor.scale_factor();
+    let monitor_w = monitor.size().width as f64 / scale_factor;
+    let monitor_h = monitor.size().height as f64 / scale_factor;
+    let monitor_x = monitor.position().x as f64 / scale_factor;
+    let monitor_y = monitor.position().y as f64 / scale_factor;
+
+    // 窗口尺寸
+    let window_w = 600.0;
+    let window_h = 400.0;
+
+    // 屏幕下方居中
+    let x = monitor_x + (monitor_w - window_w) / 2.0;
+    let y = monitor_y + monitor_h - window_h - 80.0;
+
+    let title = if is_zh { "SnapTranslate - 文本翻译" } else { "SnapTranslate - Text Translate" };
+
+    let _window = WebviewWindowBuilder::new(app, "text-translate", WebviewUrl::App("/text-translate".into()))
+        .title(title)
+        .decorations(false)
+        .always_on_top(true)
+        .transparent(true)
+        .shadow(false)
+        .focusable(true)
+        .resizable(false)
+        .skip_taskbar(true)
+        .position(x, y)
+        .inner_size(window_w, window_h)
+        .build()
+        .map_err(|e| AppError::ConfigError(format!("创建文本翻译窗口失败: {}", e)))?;
+
+    Ok(())
+}
+
 /// 创建蒙版窗口并存储图像数据（旧流程，兼容外部调用）
 #[allow(dead_code)]
 pub fn create_overlay_window(app: &AppHandle, image_data: &OverlayImageData) -> Result<(), AppError> {

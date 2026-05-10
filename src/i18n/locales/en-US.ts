@@ -54,6 +54,7 @@ export default {
     shortcutConfig: 'Shortcuts',
     captureShortcut: 'Capture Shortcut',
     pinClipboardShortcut: 'Pin from Clipboard',
+    textTranslateShortcut: 'Text Translate',
     pressShortcut: 'Press shortcut keys...',
     clickToSet: 'Click to set shortcut',
     restoreDefaults: 'Restore Defaults',
@@ -115,9 +116,21 @@ export default {
   tray: {
     captureTranslate: 'Capture & Translate',
     pinFromClipboard: 'Pin from Clipboard',
+    textTranslate: 'Text Translate',
     history: 'Translation History',
     settings: 'Settings',
     quit: 'Quit',
+  },
+
+  // Text translate
+  textTranslate: {
+    title: 'Text Translate',
+    inputPlaceholder: 'Enter or paste text to translate...',
+    shortcutHint: 'Ctrl + Enter to translate',
+    translate: 'Translate',
+    retranslate: 'Re-translate',
+    translating: 'Translating...',
+    copyTranslation: 'Copy Translation',
   },
 
   // Error messages
