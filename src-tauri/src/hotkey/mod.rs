@@ -140,7 +140,7 @@ pub fn reregister_hotkeys(app: &tauri::AppHandle, new_config: &ShortcutConfig) -
     Ok(())
 }
 
-/// 截屏流程：先创建蒙版窗口，再执行耗时截图
+/// 截屏流程：先快速捕获原始像素确保裁剪数据就绪，再创建蒙版窗口
 pub fn handle_capture_flow(app: &tauri::AppHandle) -> Result<(), AppError> {
     let monitor = app
         .primary_monitor()
@@ -151,35 +151,61 @@ pub fn handle_capture_flow(app: &tauri::AppHandle) -> Result<(), AppError> {
     let monitor_x = (monitor.position().x as f64 * scale_factor).round() as i32;
     let monitor_y = (monitor.position().y as f64 * scale_factor).round() as i32;
 
-    crate::window::create_overlay_window_lazy(app)?;
-    log::info!("[HOTKEY] overlay 窗口创建成功（加载中...）");
-
-    let (jpeg_base64, rgba_image) = {
+    // 第一步：同步捕获原始像素（仅 raw capture，不编码，速度快）
+    // 确保在蒙版窗口出现前裁剪数据已就绪，用户松开鼠标时可立即裁剪
+    let rgba_image = {
         let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
         let locked = state.lock().map_err(|e| {
             AppError::ConfigError(format!("锁定截图服务失败: {}", e))
         })?;
-        locked.capture_fullscreen_with_cache(None)?
+        locked.capture_fullscreen_raw(None)?
     };
 
+    // 第二步：立即存储原始像素到缓存，供后续裁剪使用
     {
         let store = app.state::<std::sync::Mutex<crate::window::CachedScreenStore>>();
         let mut store = store.lock().map_err(|e| {
             AppError::ConfigError(format!("锁定缓存失败: {}", e))
         })?;
         store.screen = Some(crate::window::CachedScreen {
-            image: rgba_image,
+            image: rgba_image.clone(),
             monitor_x,
             monitor_y,
             scale_factor,
         });
-        store.overlay_image = Some(crate::window::OverlayImageData {
-            data: jpeg_base64,
-            mime: "image/jpeg".to_string(),
-        });
     }
 
-    log::info!("[HOTKEY] 截图完成，图像数据已就绪");
+    // 第三步：创建蒙版窗口（此时 screen 数据已就绪，前端可立即裁剪）
+    crate::window::create_overlay_window_lazy(app)?;
+    log::info!("[HOTKEY] overlay 窗口创建成功（屏幕数据已就绪，后台编码截图中...）");
+
+    // 第四步：后台线程编码 JPEG（仅用于蒙版背景显示，不影响裁剪）
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        let result = (|| -> Result<(), AppError> {
+            let dynamic_image = image::DynamicImage::ImageRgba8(rgba_image);
+            let jpeg_base64 = crate::capture::encode_to_base64_jpeg(&dynamic_image, 50)?;
+
+            {
+                let store = app_clone.state::<std::sync::Mutex<crate::window::CachedScreenStore>>();
+                let mut store = store.lock().map_err(|e| {
+                    AppError::ConfigError(format!("锁定缓存失败: {}", e))
+                })?;
+                store.overlay_image = Some(crate::window::OverlayImageData {
+                    data: jpeg_base64,
+                    mime: "image/jpeg".to_string(),
+                });
+            }
+
+            log::info!("[HOTKEY] 后台 JPEG 编码完成，蒙版背景数据已就绪");
+            Ok(())
+        })();
+
+        if let Err(e) = result {
+            log::error!("[HOTKEY] 后台 JPEG 编码失败: {}", e);
+        }
+    });
+
     Ok(())
 }
 

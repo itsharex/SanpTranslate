@@ -19,7 +19,7 @@
             @load="onImageLoad"
           />
         </div>
-        <ControlBar
+        <ControlBar v-if="imageLoaded"
           :translate-status="translateStatus"
           :show-original="showOriginal"
           :has-translation="hasTranslation"
@@ -79,6 +79,7 @@ const MAX_PANEL_WIDTH = 340
 type TranslateStatus = 'idle' | 'translating' | 'done' | 'error'
 
 const imageDataUrl = ref<string>('')
+const imageLoaded = ref(false)
 const pinId = ref<string>('')
 const translateStatus = ref<TranslateStatus>('idle')
 const showOriginal = ref(false)
@@ -280,6 +281,9 @@ async function onImageLoad(event: Event) {
   analyzeEdgeBrightness(img)
 
   await updateWindowSize(false)
+
+  // 图片加载完成后再显示 ControlBar，避免按钮出现在错误位置
+  imageLoaded.value = true
 }
 
 onMounted(async () => {
@@ -289,7 +293,21 @@ onMounted(async () => {
 
   try {
     logger.info(TAG, `调用 getPinImage, windowId=${pinId.value}`)
-    const base64Data = await getPinImage(pinId.value)
+    let base64Data = await getPinImage(pinId.value)
+
+    // 预创建场景下数据可能尚未存储，轮询等待
+    if (!base64Data) {
+      logger.info(TAG, '图片数据未就绪，轮询等待...')
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 50))
+        base64Data = await getPinImage(pinId.value)
+        if (base64Data) {
+          logger.info(TAG, `轮询第 ${i + 1} 次获取到图片数据`)
+          break
+        }
+      }
+    }
+
     if (base64Data) {
       logger.info(TAG, `获取到图片数据，长度=${base64Data.length}, startsWithData=${base64Data.startsWith('data:')}`)
       if (base64Data.startsWith('data:')) {

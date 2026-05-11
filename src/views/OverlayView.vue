@@ -1,6 +1,7 @@
 <template>
   <div
     class="overlay-container"
+    :style="containerStyle"
     @mousedown="onMouseDown"
     @mousemove="onMouseMove"
     @mouseup="onMouseUp"
@@ -35,7 +36,6 @@ const startX = ref(0)
 const startY = ref(0)
 const endX = ref(0)
 const endY = ref(0)
-const fullscreenImage = ref<string | null>(null)
 let fullscreenImgElement: HTMLImageElement | null = null
 
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null
@@ -43,6 +43,10 @@ let rafId: number | null = null
 
 const selectionWidth = computed(() => Math.abs(endX.value - startX.value))
 const selectionHeight = computed(() => Math.abs(endY.value - startY.value))
+
+const containerStyle = computed(() => ({
+  cursor: 'crosshair',
+}))
 
 const sizeTipStyle = computed(() => {
   const rectX = Math.min(startX.value, endX.value)
@@ -56,7 +60,7 @@ const sizeTipStyle = computed(() => {
 
 function drawCanvas() {
   const canvas = canvasRef.value
-  if (!canvas || !fullscreenImgElement) return
+  if (!canvas) return
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -64,7 +68,12 @@ function drawCanvas() {
   const dpr = window.devicePixelRatio || 1
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-  ctx.drawImage(fullscreenImgElement, 0, 0, canvas.width, canvas.height)
+
+  // 有截图时绘制背景图，否则只显示半透明遮罩
+  if (fullscreenImgElement) {
+    ctx.drawImage(fullscreenImgElement, 0, 0, canvas.width, canvas.height)
+  }
+
   ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
@@ -78,7 +87,9 @@ function drawCanvas() {
     ctx.beginPath()
     ctx.rect(rx, ry, rw, rh)
     ctx.clip()
-    ctx.drawImage(fullscreenImgElement, 0, 0, canvas.width, canvas.height)
+    if (fullscreenImgElement) {
+      ctx.drawImage(fullscreenImgElement, 0, 0, canvas.width, canvas.height)
+    }
     ctx.restore()
 
     ctx.save()
@@ -91,7 +102,6 @@ function drawCanvas() {
 }
 
 function onMouseDown(e: MouseEvent) {
-  if (!fullscreenImage.value) return
   e.preventDefault()
   isSelecting.value = true
   startX.value = e.clientX
@@ -133,61 +143,62 @@ async function onMouseUp(e: MouseEvent) {
     return
   }
 
+  // 清除选区矩形，显示纯遮罩
+  drawCanvas()
+
+  const physX = Math.round(cssX * dpr)
+  const physY = Math.round(cssY * dpr)
+  const physW = Math.round(cssW * dpr)
+  const physH = Math.round(cssH * dpr)
+
+  logger.info(TAG, `物理像素: physX=${physX}, physY=${physY}, physW=${physW}, physH=${physH}`)
+
+  // 直接从 CSS 坐标计算贴图窗口位置（无需等待后端编码结果）
+  const PIN_PADDING = 14
+  const CONTROL_BAR_H = 36
+  const windowX = cssX - PIN_PADDING
+  const windowY = cssY - PIN_PADDING
+  const windowWidth = cssW + PIN_PADDING * 2
+  const windowHeight = cssH + CONTROL_BAR_H + PIN_PADDING * 2
+
+  // 创建贴图窗口（定位到正确位置，visible），与后端编码并行
+  const label = `pin-${crypto.randomUUID()}`
+  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+
+  const pinWindow = new WebviewWindow(label, {
+    url: '/pin',
+    title: t('pin.title'),
+    decorations: false,
+    alwaysOnTop: true,
+    transparent: true,
+    shadow: false,
+    skipTaskbar: true,
+    resizable: false,
+    x: windowX,
+    y: windowY,
+    width: windowWidth,
+    height: windowHeight,
+  })
+
+  pinWindow.once('tauri://error', (err) => {
+    logger.error(TAG, `贴图窗口创建失败: ${err}`, err)
+  })
+
+  // 后台：裁剪编码 + 存储图像（蒙版保持，pin 窗口位于其上方）
   try {
-    const physX = Math.round(cssX * dpr)
-    const physY = Math.round(cssY * dpr)
-    const physW = Math.round(cssW * dpr)
-    const physH = Math.round(cssH * dpr)
-
-    logger.info(TAG, `物理像素: physX=${physX}, physY=${physY}, physW=${physW}, physH=${physH}`)
-
-    // 调用后端命令：从缓存裁剪区域 + 快速PNG编码 + 异步剪贴板写入
-    logger.info(TAG, '调用 captureRegionFromCache...')
     const cropResult = await captureRegionFromCache(physX, physY, physW, physH)
     logger.info(TAG, `captureRegionFromCache 返回: x=${cropResult.x}, y=${cropResult.y}, w=${cropResult.width}, h=${cropResult.height}`)
 
-    // 生成贴图窗口标签
-    const label = `pin-${crypto.randomUUID()}`
-
-    // 存储图像数据到后端 PinImageStore
     await storePinImage(label, cropResult.base64_data)
     logger.info(TAG, `图像数据已存储，label=${label}`)
-
-    // 前端创建贴图窗口
-    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
-    const pinWindow = new WebviewWindow(label, {
-      url: '/pin',
-      title: t('pin.title'),
-      decorations: false,
-      alwaysOnTop: true,
-      transparent: true,
-      shadow: false,
-      skipTaskbar: true,
-      resizable: false,
-      x: cropResult.x,
-      y: cropResult.y,
-      width: cropResult.width,
-      height: cropResult.height,
-    })
-
-    pinWindow.once('tauri://created', () => {
-      logger.info(TAG, `贴图窗口创建成功: label=${label}`)
-    })
-
-    pinWindow.once('tauri://error', (err) => {
-      logger.error(TAG, `贴图窗口创建失败: ${err}`, err)
-    })
   } catch (err) {
     logger.error(TAG, `框选处理失败: ${err}`, err)
   }
 
-  logger.info(TAG, '尝试销毁 overlay 窗口...')
-  try {
-    await getCurrentWindow().destroy()
-    logger.info(TAG, 'overlay 窗口销毁成功')
-  } catch (err) {
-    logger.error(TAG, `overlay 窗口销毁失败: ${err}`, err)
-  }
+  // 等 IPC 完成后销毁蒙版
+  getCurrentWindow().destroy().catch((err) => {
+    logger.error(TAG, `销毁蒙版失败: ${err}`, err)
+  })
 }
 
 function onKeyDown(e: KeyboardEvent) {
@@ -219,8 +230,6 @@ function initCanvasSize() {
 
 function loadFullscreenImage(dataUrl: string) {
   logger.info(TAG, `收到全屏截图数据，dataUrl长度=${dataUrl.length}`)
-  fullscreenImage.value = dataUrl
-
   const img = new Image()
   img.onload = () => {
     fullscreenImgElement = img
@@ -237,19 +246,49 @@ function loadFullscreenImage(dataUrl: string) {
 onMounted(async () => {
   logger.info(TAG, 'OverlayView onMounted')
   initCanvasSize()
+  // 立即绘制半透明遮罩，不等截图加载完成，让用户感知蒙版已响应
+  drawCanvas()
 
-  // 从后端拉取蒙版图像数据（后端先创建窗口再执行截图）
-  try {
-    const overlayData = await invoke<{ data: string; mime: string } | null>('get_overlay_image')
-    if (overlayData) {
-      logger.info(TAG, `拉取到蒙版图像数据，mime=${overlayData.mime}，数据长度=${overlayData.data.length}`)
-      const dataUrl = `data:${overlayData.mime};base64,${overlayData.data}`
-      loadFullscreenImage(dataUrl)
-    } else {
-      logger.error(TAG, '后端无蒙版图像数据')
+  // 轮询拉取蒙版图像数据（后台线程异步编码截图）
+  const POLL_INTERVAL_MS = 100
+  const MAX_POLL_ATTEMPTS = 50  // 50 * 100ms = 5s 超时
+  let imageLoaded = false
+
+  for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+    try {
+      const overlayData = await invoke<{ data: string; mime: string } | null>('get_overlay_image')
+      if (overlayData) {
+        logger.info(TAG, `拉取到蒙版图像数据（第${i + 1}次轮询），mime=${overlayData.mime}，数据长度=${overlayData.data.length}`)
+        const dataUrl = `data:${overlayData.mime};base64,${overlayData.data}`
+        loadFullscreenImage(dataUrl)
+        imageLoaded = true
+        break
+      }
+    } catch (err) {
+      logger.error(TAG, `拉取蒙版图像数据失败: ${err}`, err)
+      break  // 命令出错不再重试
     }
-  } catch (err) {
-    logger.error(TAG, `拉取蒙版图像数据失败: ${err}`, err)
+
+    if (i < MAX_POLL_ATTEMPTS - 1) {
+      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+    }
+  }
+
+  // 最终额外尝试一次，覆盖极微小的竞态窗口
+  if (!imageLoaded) {
+    try {
+      const overlayData = await invoke<{ data: string; mime: string } | null>('get_overlay_image')
+      if (overlayData) {
+        logger.info(TAG, `最终尝试拉取到蒙版图像数据`)
+        const dataUrl = `data:${overlayData.mime};base64,${overlayData.data}`
+        loadFullscreenImage(dataUrl)
+        imageLoaded = true
+      }
+    } catch { /* 忽略最终尝试的异常 */ }
+  }
+
+  if (!imageLoaded) {
+    logger.error(TAG, `轮询超时（${MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS}ms），未获取到蒙版图像数据`)
   }
 
   keydownHandler = onKeyDown
@@ -278,7 +317,6 @@ onUnmounted(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  cursor: crosshair;
   overflow: hidden;
 }
 
@@ -301,4 +339,5 @@ onUnmounted(() => {
   white-space: nowrap;
   z-index: 10;
 }
+
 </style>

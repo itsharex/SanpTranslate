@@ -94,6 +94,15 @@ impl CaptureService {
             .collect()
     }
 
+    /// 仅截取全屏原始像素（不编码，速度快），供缓存裁剪使用
+    pub fn capture_fullscreen_raw(&self, monitor_id: Option<&str>) -> Result<image::RgbaImage, AppError> {
+        let monitor = self.find_monitor(monitor_id)?;
+        let image = monitor
+            .capture_image()
+            .map_err(|e| AppError::CaptureError(format!("截取全屏失败: {}", e)))?;
+        Ok(image)
+    }
+
     /// 截取全屏截图，返回 Base64 编码的 PNG
     #[allow(dead_code)]
     pub fn capture_fullscreen(&self, monitor_id: Option<&str>) -> Result<String, AppError> {
@@ -128,6 +137,7 @@ impl CaptureService {
     }
 
     /// 截取全屏截图，返回 JPEG Base64 编码数据（用于蒙版显示）和原始像素数据（用于区域裁剪）
+    #[allow(dead_code)]
     pub fn capture_fullscreen_with_cache(
         &self,
         monitor_id: Option<&str>,
@@ -142,7 +152,8 @@ impl CaptureService {
 
         // 使用 JPEG 编码（质量 85），大幅降低编码耗时
         let dynamic_image = DynamicImage::ImageRgba8(image);
-        let jpeg_base64 = encode_to_base64_jpeg(&dynamic_image, 85)?;
+        // 质量 50：蒙版背景图显示在半透明黑色遮罩下，低质量视觉差异极小
+        let jpeg_base64 = encode_to_base64_jpeg(&dynamic_image, 50)?;
 
         Ok((jpeg_base64, rgba_image))
     }
@@ -191,7 +202,7 @@ fn encode_to_base64_png(image: &DynamicImage) -> Result<String, AppError> {
 
 /// 将 DynamicImage 编码为 Base64 JPEG 字符串
 /// quality: JPEG 质量（1-100），推荐 85
-fn encode_to_base64_jpeg(image: &DynamicImage, quality: u8) -> Result<String, AppError> {
+pub(crate) fn encode_to_base64_jpeg(image: &DynamicImage, quality: u8) -> Result<String, AppError> {
     let mut buf = Cursor::new(Vec::new());
     // JPEG 不支持 alpha 通道，需要转换为 RGB
     let rgb_image = image.to_rgb8();
