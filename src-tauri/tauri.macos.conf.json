@@ -1,0 +1,10 @@
+{
+  "app": {
+    "trayIcon": {
+      "iconAsTemplate": true
+    }
+  },
+  "bundle": {
+    "resources": []
+  }
+}

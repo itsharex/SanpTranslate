@@ -63,15 +63,36 @@ pub fn register_hotkeys(app: &tauri::AppHandle, config: &ShortcutConfig) -> Resu
 
     app.global_shortcut()
         .register(capture_shortcut)
-        .map_err(|e| AppError::ConfigError(format!("注册截图快捷键失败: {}", e)))?;
+        .map_err(|e| {
+            #[cfg(target_os = "macos")]
+            log::warn!(
+                "[PERMISSION] 快捷键注册失败需要辅助功能权限 (macOS)。\
+                 请前往 系统设置 > 隐私与安全性 > 辅助功能 添加本应用"
+            );
+            AppError::ConfigError(format!("注册截图快捷键失败: {}", e))
+        })?;
 
     app.global_shortcut()
         .register(pin_clipboard_shortcut)
-        .map_err(|e| AppError::ConfigError(format!("注册剪贴板贴图快捷键失败: {}", e)))?;
+        .map_err(|e| {
+            #[cfg(target_os = "macos")]
+            log::warn!(
+                "[PERMISSION] 快捷键注册失败需要辅助功能权限 (macOS)。\
+                 请前往 系统设置 > 隐私与安全性 > 辅助功能 添加本应用"
+            );
+            AppError::ConfigError(format!("注册剪贴板贴图快捷键失败: {}", e))
+        })?;
 
     app.global_shortcut()
         .register(text_translate_shortcut)
-        .map_err(|e| AppError::ConfigError(format!("注册文本翻译快捷键失败: {}", e)))?;
+        .map_err(|e| {
+            #[cfg(target_os = "macos")]
+            log::warn!(
+                "[PERMISSION] 快捷键注册失败需要辅助功能权限 (macOS)。\
+                 请前往 系统设置 > 隐私与安全性 > 辅助功能 添加本应用"
+            );
+            AppError::ConfigError(format!("注册文本翻译快捷键失败: {}", e))
+        })?;
 
     Ok(())
 }

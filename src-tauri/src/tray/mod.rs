@@ -121,7 +121,7 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig, language: &str) 
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .show_menu_on_left_click(true)
+        .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => {
                 match crate::hotkey::handle_capture_flow(app) {

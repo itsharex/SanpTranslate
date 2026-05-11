@@ -1,0 +1,13 @@
+{
+  "app": {
+    "trayIcon": {
+      "iconAsTemplate": false
+    }
+  },
+  "bundle": {
+    "resources": [
+      "resources/tesseract/*",
+      "resources/tesseract/tessdata/*"
+    ]
+  }
+}

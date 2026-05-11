@@ -54,7 +54,7 @@ pub struct CaptureService {
     monitors: Vec<Monitor>,
 }
 
-// HMONITOR 在 Windows 上跨线程使用是安全的，xcap 的 Monitor 内部状态在创建后只读
+// CaptureService 始终在 std::sync::Mutex 后访问，xcap 的 Monitor 内部状态在创建后只读
 unsafe impl Send for CaptureService {}
 unsafe impl Sync for CaptureService {}
 
@@ -62,7 +62,16 @@ impl CaptureService {
     /// 创建截图服务实例，获取显示器列表
     pub fn new() -> Result<Self, AppError> {
         let monitors = Monitor::all()
-            .map_err(|e| AppError::CaptureError(format!("获取显示器列表失败: {}", e)))?;
+            .map_err(|e| {
+                #[cfg(target_os = "linux")]
+                log::warn!(
+                    "[WAYLAND] xcap 显示器枚举失败: {}。\
+                     在 Wayland 下需要安装 xdg-desktop-portal 和 PipeWire，\
+                     或尝试使用 XWayland 会话",
+                    e
+                );
+                AppError::CaptureError(format!("获取显示器列表失败: {}", e))
+            })?;
         Ok(Self { monitors })
     }
 

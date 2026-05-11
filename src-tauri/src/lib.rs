@@ -64,9 +64,27 @@ pub fn run() {
             let capture_service = capture::CaptureService::new()
                 .map_err(|e| {
                     log::error!("初始化截图服务失败: {}", e);
+                    #[cfg(target_os = "macos")]
+                    log::warn!(
+                        "[PERMISSION] 屏幕截图需要屏幕录制权限 (macOS 10.15+)。\
+                         请前往 系统设置 > 隐私与安全性 > 屏幕录制 添加终端或本应用"
+                    );
                     e
                 })?;
             app.manage(Mutex::new(capture_service));
+
+            // Linux: 检测是否运行在 Wayland 会话下
+            #[cfg(target_os = "linux")]
+            {
+                let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+                let wayland_display = std::env::var("WAYLAND_DISPLAY").unwrap_or_default();
+                if session_type == "wayland" || !wayland_display.is_empty() {
+                    log::warn!(
+                        "[WAYLAND] 检测到 Wayland 会话，部分功能可能受限。\
+                         屏幕截图需要安装 xdg-desktop-portal 和 PipeWire"
+                    );
+                }
+            }
 
             // 初始化历史记录服务（SQLite 数据库）
             let data_dir = app.path().app_data_dir()

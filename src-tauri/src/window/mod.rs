@@ -130,7 +130,14 @@ pub fn create_text_translate_window(app: &AppHandle) -> Result<(), AppError> {
     let monitor = app.primary_monitor()
         .ok()
         .flatten()
-        .ok_or_else(|| AppError::ConfigError("获取主显示器信息失败".to_string()))?;
+        .ok_or_else(|| {
+            #[cfg(target_os = "linux")]
+            log::warn!(
+                "[WAYLAND] 无法获取主显示器信息。\
+                 Wayland 可能未正确暴露显示器信息，请尝试使用 XWayland 或 X11 会话"
+            );
+            AppError::ConfigError("获取主显示器信息失败".to_string())
+        })?;
 
     let scale_factor = monitor.scale_factor();
     let monitor_w = monitor.size().width as f64 / scale_factor;
@@ -205,7 +212,14 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
     let monitor = app.primary_monitor()
         .ok()
         .flatten()
-        .ok_or_else(|| AppError::ConfigError("获取主显示器信息失败".to_string()))?;
+        .ok_or_else(|| {
+            #[cfg(target_os = "linux")]
+            log::warn!(
+                "[WAYLAND] 无法获取主显示器信息。\
+                 Wayland 下透明蒙版窗口可能无法正常渲染，请尝试使用 X11 会话"
+            );
+            AppError::ConfigError("获取主显示器信息失败".to_string())
+        })?;
 
     let scale_factor = monitor.scale_factor();
     let monitor_x = monitor.position().x as f64 / scale_factor;

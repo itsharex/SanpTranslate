@@ -24,8 +24,7 @@
       "csp": null
     },
     "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": false
+      "iconPath": "icons/icon.png"
     }
   },
   "bundle": {
@@ -38,9 +37,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "resources/tesseract/*",
-      "resources/tesseract/tessdata/*"
-    ]
+    "resources": []
   }
 }
