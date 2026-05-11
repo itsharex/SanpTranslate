@@ -48,7 +48,9 @@ $RECYCLE.BIN/
 *~
 .trae/
 .claude/
-.github/
+.github/*
+!.github/workflows/
+!.github/release-notes.md
 
 # 日志文件
 *.log

@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 验证 tag 版本号与 Cargo.toml 一致
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 获取 Cargo.toml 中的版本号
+        id: get-version
+        shell: bash
+        run: |
+          CARGO_VERSION=$(grep '^version =' src-tauri/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Cargo version: $CARGO_VERSION"
+          echo "Tag version: $TAG_VERSION"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::版本号不匹配：Cargo.toml ($CARGO_VERSION) != tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
+
+  # 跨平台构建
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle-dir: bundle/x86_64-pc-windows-msvc
+            artifact-name: SnapTranslate-Windows-x86_64
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundle-dir: bundle/x86_64-apple-darwin
+            artifact-name: SnapTranslate-macOS-x86_64
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundle-dir: bundle/x86_64-unknown-linux-gnu
+            artifact-name: SnapTranslate-Linux-x86_64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node.js 环境
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      # Rust 工具链
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # 缓存 Rust 依赖加速构建
+      - name: 缓存 Rust 依赖
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      # Linux 系统依赖
+      - name: 安装 Linux 系统依赖
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev
+
+      # 安装前端依赖
+      - name: 安装前端依赖
+        run: npm ci
+
+      # 构建 Tauri 应用
+      - name: 构建 Tauri 应用 (${{ matrix.target }})
+        run: npm run tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # 收集构建产物
+      - name: 整理安装包
+        shell: bash
+        run: |
+          mkdir -p "${{ matrix.bundle-dir }}"
+          if [ -d "src-tauri/target/release/bundle/msi" ]; then
+            cp src-tauri/target/release/bundle/msi/*.msi "${{ matrix.bundle-dir }}/" || true
+          fi
+          if [ -d "src-tauri/target/release/bundle/nsis" ]; then
+            cp src-tauri/target/release/bundle/nsis/*.exe "${{ matrix.bundle-dir }}/" || true
+          fi
+          if [ -d "src-tauri/target/release/bundle/dmg" ]; then
+            cp src-tauri/target/release/bundle/dmg/*.dmg "${{ matrix.bundle-dir }}/" || true
+          fi
+          if [ -d "src-tauri/target/release/bundle/deb" ]; then
+            cp src-tauri/target/release/bundle/deb/*.deb "${{ matrix.bundle-dir }}/" || true
+          fi
+          if [ -d "src-tauri/target/release/bundle/appimage" ]; then
+            cp src-tauri/target/release/bundle/appimage/*.AppImage "${{ matrix.bundle-dir }}/" || true
+          fi
+          ls -lh "${{ matrix.bundle-dir }}/"
+
+      # 上传构建产物
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.bundle-dir }}/*
+          if-no-files-found: error
+
+  # 创建 GitHub Release 并上传所有安装包
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: SnapTranslate-*
+          merge-multiple: true
+
+      - name: 查看产物清单
+        run: ls -lhR artifacts/
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SnapTranslate ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body_path: .github/release-notes.md
+          files: artifacts/*
+          generate_release_notes: false
+          draft: true
+          prerelease: false
