@@ -8,7 +8,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Tauri-2.x-FFC131" alt="Tauri 2.x" />
-  <img src="https://img.shields.io/badge/Rust-2024-edition-orange?logo=rust" alt="Rust 2024" />
+  <img src="https://img.shields.io/static/v1?label=Rust&message=2024&color=orange" alt="Rust 2024" />
   <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js" alt="Vue 3.5" />
   <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript" alt="TypeScript 5.7" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
