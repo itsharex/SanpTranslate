@@ -155,19 +155,23 @@ pub fn create_text_translate_window(app: &AppHandle) -> Result<(), AppError> {
 
     let title = if is_zh { "SnapTranslate - 文本翻译" } else { "SnapTranslate - Text Translate" };
 
-    let _window = WebviewWindowBuilder::new(app, "text-translate", WebviewUrl::App("/text-translate".into()))
-        .title(title)
-        .decorations(false)
-        .always_on_top(true)
-        .transparent(true)
-        .shadow(false)
-        .focusable(true)
-        .resizable(false)
-        .skip_taskbar(true)
-        .position(x, y)
-        .inner_size(window_w, window_h)
-        .build()
-        .map_err(|e| AppError::ConfigError(format!("创建文本翻译窗口失败: {}", e)))?;
+    let _window = {
+        let builder = WebviewWindowBuilder::new(app, "text-translate", WebviewUrl::App("/text-translate".into()))
+            .title(title)
+            .decorations(false)
+            .always_on_top(true);
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.transparent(true);
+        builder
+            .shadow(false)
+            .focusable(true)
+            .resizable(false)
+            .skip_taskbar(true)
+            .position(x, y)
+            .inner_size(window_w, window_h)
+            .build()
+            .map_err(|e| AppError::ConfigError(format!("创建文本翻译窗口失败: {}", e)))?
+    };
 
     Ok(())
 }
@@ -227,18 +231,22 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
     let monitor_w = monitor.size().width as f64 / scale_factor;
     let monitor_h = monitor.size().height as f64 / scale_factor;
 
-    let _window = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("/overlay".into()))
-        .title("SnapTranslate - 截图蒙版")
-        .decorations(false)
-        .always_on_top(true)
-        .transparent(true)
-        .shadow(false)
-        .focusable(true)
-        .resizable(false)
-        .position(monitor_x, monitor_y)
-        .inner_size(monitor_w, monitor_h)
-        .build()
-        .map_err(|e| AppError::ConfigError(format!("创建蒙版窗口失败: {}", e)))?;
+    let _window = {
+        let builder = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("/overlay".into()))
+            .title("SnapTranslate - 截图蒙版")
+            .decorations(false)
+            .always_on_top(true);
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.transparent(true);
+        builder
+            .shadow(false)
+            .focusable(true)
+            .resizable(false)
+            .position(monitor_x, monitor_y)
+            .inner_size(monitor_w, monitor_h)
+            .build()
+            .map_err(|e| AppError::ConfigError(format!("创建蒙版窗口失败: {}", e)))?
+    };
 
     Ok(())
 }
@@ -296,18 +304,22 @@ pub fn create_pin_window(
 ) -> Result<String, AppError> {
     let info = prepare_pin_window(app, image_data, x, y, w, h)?;
 
-    let _window = WebviewWindowBuilder::new(app, &info.label, WebviewUrl::App("/pin".into()))
-        .title("SnapTranslate - 贴图")
-        .decorations(false)
-        .always_on_top(true)
-        .transparent(true)
-        .shadow(false)
-        .skip_taskbar(true)
-        .resizable(false)
-        .position(info.x, info.y)
-        .inner_size(info.width, info.height)
-        .build()
-        .map_err(|e| AppError::ConfigError(format!("创建贴图窗口失败: {}", e)))?;
+    let _window = {
+        let builder = WebviewWindowBuilder::new(app, &info.label, WebviewUrl::App("/pin".into()))
+            .title("SnapTranslate - 贴图")
+            .decorations(false)
+            .always_on_top(true);
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.transparent(true);
+        builder
+            .shadow(false)
+            .skip_taskbar(true)
+            .resizable(false)
+            .position(info.x, info.y)
+            .inner_size(info.width, info.height)
+            .build()
+            .map_err(|e| AppError::ConfigError(format!("创建贴图窗口失败: {}", e)))?
+    };
 
     Ok(info.label)
 }

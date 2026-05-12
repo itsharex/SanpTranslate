@@ -89,7 +89,8 @@ jobs:
             librsvg2-dev \
             patchelf \
             libxdo-dev \
-            libpipewire-0.3-dev
+            libpipewire-0.3-dev \
+            libgbm-dev
 
       # 安装前端依赖
       - name: 安装前端依赖
