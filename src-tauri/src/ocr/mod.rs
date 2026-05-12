@@ -5,6 +5,8 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use tauri::Manager;
 
 /// OCR识别的文字块
@@ -46,9 +48,11 @@ fn tesseract_exe_name() -> &'static str {
 /// 在系统 PATH 中查找 Tesseract
 #[cfg(target_os = "windows")]
 fn find_tesseract_in_path() -> Result<PathBuf, AppError> {
-    let output = Command::new("where")
-        .arg(tesseract_exe_name())
-        .output()
+    let mut cmd = Command::new("where");
+    cmd.arg(tesseract_exe_name());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
+    let output = cmd.output()
         .map_err(|_| {
             AppError::OcrError(
                 "未找到Tesseract可执行文件：资源目录和系统PATH中均不存在".to_string(),
@@ -314,6 +318,10 @@ fn execute_tesseract_and_read_tsv(
     }
 
     log::debug!("[OCR] 执行命令: {:?}", cmd);
+
+    // Windows 下抑制控制台窗口弹出
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
 
     // 执行Tesseract命令
     let output = cmd

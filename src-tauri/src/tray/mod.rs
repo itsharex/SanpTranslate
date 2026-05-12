@@ -3,7 +3,7 @@ use crate::config::resolve_language;
 use crate::error::AppError;
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::{TrayIcon, TrayIconBuilder};
+use tauri::tray::TrayIcon;
 use tauri::AppHandle;
 use tauri::Emitter;
 
@@ -115,83 +115,90 @@ pub fn create_tray(app: &AppHandle, shortcuts: &ShortcutConfig, language: &str) 
     let text = get_tray_text(language, shortcuts);
     let menu = build_tray_menu(app, &text)?;
 
-    // 加载默认托盘图标
-    let icon = tauri::image::Image::from_bytes(include_bytes!("../../icons/icon.png"))?;
+    // 获取 tauri.conf.json 中配置的默认托盘图标（ID 为 "main"），避免创建第二个图标
+    let tray = app.tray_by_id("main").ok_or_else(|| {
+        AppError::ConfigError("找不到默认托盘图标".to_string())
+    })?;
 
-    let tray = TrayIconBuilder::new()
-        .icon(icon)
-        .menu(&menu)
-        .show_menu_on_left_click(cfg!(target_os = "macos"))
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "capture" => {
-                match crate::hotkey::handle_capture_flow(app) {
-                    Ok(_) => {}
-                    Err(e) => log::error!("截图失败: {}", e),
-                }
-            }
-            "pin_clipboard" => {
-                match (|| -> Result<(), AppError> {
-                    use base64::Engine;
-                    use base64::engine::general_purpose::STANDARD;
+    // 设置托盘菜单
+    tray.set_menu(Some(menu)).map_err(|e| {
+        AppError::ConfigError(format!("设置托盘菜单失败: {}", e))
+    })?;
 
-                    let image_data = match crate::clipboard::read_clipboard_image(app)? {
-                        Some(data) => data,
-                        None => return Ok(()),
-                    };
+    // 设置左键点击行为
+    tray.set_show_menu_on_left_click(cfg!(target_os = "macos")).map_err(|e| {
+        AppError::ConfigError(format!("设置托盘左键点击行为失败: {}", e))
+    })?;
 
-                    let bytes = STANDARD.decode(&image_data)
-                        .map_err(|e| AppError::ClipboardError(format!("Base64 解码失败: {}", e)))?;
-                    let img = image::load_from_memory(&bytes)
-                        .map_err(|e| AppError::ClipboardError(format!("图像解码失败: {}", e)))?;
-                    let (img_w, img_h) = (img.width(), img.height());
+    tray.on_menu_event(|app, event| match event.id.as_ref() {
+        "capture" => {
+            match crate::hotkey::handle_capture_flow(app) {
+                Ok(_) => {}
+                Err(e) => log::error!("截图失败: {}", e),
+            }
+        }
+        "pin_clipboard" => {
+            match (|| -> Result<(), AppError> {
+                use base64::Engine;
+                use base64::engine::general_purpose::STANDARD;
 
-                    let (mon_x, mon_y, mon_w, mon_h) = {
-                        let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
-                        let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
-                        locked.get_primary_monitor_info()?
-                    };
+                let image_data = match crate::clipboard::read_clipboard_image(app)? {
+                    Some(data) => data,
+                    None => return Ok(()),
+                };
 
-                    let center_x = mon_x + ((mon_w - img_w) as i32) / 2;
-                    let center_y = mon_y + ((mon_h - img_h) as i32) / 2;
+                let bytes = STANDARD.decode(&image_data)
+                    .map_err(|e| AppError::ClipboardError(format!("Base64 解码失败: {}", e)))?;
+                let img = image::load_from_memory(&bytes)
+                    .map_err(|e| AppError::ClipboardError(format!("图像解码失败: {}", e)))?;
+                let (img_w, img_h) = (img.width(), img.height());
 
-                    crate::window::create_pin_window(app, &image_data, center_x, center_y, img_w, img_h)?;
-                    Ok(())
-                })() {
-                    Ok(_) => {}
-                    Err(e) => log::error!("剪贴板贴图失败: {}", e),
-                }
+                let (mon_x, mon_y, mon_w, mon_h) = {
+                    let state = app.state::<std::sync::Mutex<crate::capture::CaptureService>>();
+                    let locked = state.lock().map_err(|e| AppError::ConfigError(format!("锁定截图服务失败: {}", e)))?;
+                    locked.get_primary_monitor_info()?
+                };
+
+                let center_x = mon_x + ((mon_w - img_w) as i32) / 2;
+                let center_y = mon_y + ((mon_h - img_h) as i32) / 2;
+
+                crate::window::create_pin_window(app, &image_data, center_x, center_y, img_w, img_h)?;
+                Ok(())
+            })() {
+                Ok(_) => {}
+                Err(e) => log::error!("剪贴板贴图失败: {}", e),
             }
-            "text_translate" => {
-                if let Err(e) = crate::window::create_text_translate_window(app) {
-                    log::error!("创建文本翻译窗口失败: {}", e);
-                }
+        }
+        "text_translate" => {
+            if let Err(e) = crate::window::create_text_translate_window(app) {
+                log::error!("创建文本翻译窗口失败: {}", e);
             }
-            "history" => {
-                if let Err(e) = crate::window::create_history_window(app) {
-                    log::error!("创建历史窗口失败: {}", e);
-                }
+        }
+        "history" => {
+            if let Err(e) = crate::window::create_history_window(app) {
+                log::error!("创建历史窗口失败: {}", e);
             }
-            "settings" => {
-                if let Err(e) = crate::window::create_settings_window(app) {
-                    log::error!("创建设置窗口失败: {}", e);
-                }
+        }
+        "settings" => {
+            if let Err(e) = crate::window::create_settings_window(app) {
+                log::error!("创建设置窗口失败: {}", e);
             }
-            "restart" => {
-                #[cfg(debug_assertions)]
-                {
-                    log::warn!("开发模式下不支持重启功能，请手动重启开发服务器");
-                }
-                #[cfg(not(debug_assertions))]
-                {
-                    app.restart();
-                }
+        }
+        "restart" => {
+            #[cfg(debug_assertions)]
+            {
+                log::warn!("开发模式下不支持重启功能，请手动重启开发服务器");
             }
-            "quit" => {
-                app.exit(0);
+            #[cfg(not(debug_assertions))]
+            {
+                app.restart();
             }
-            _ => {}
-        })
-        .build(app)?;
+        }
+        "quit" => {
+            app.exit(0);
+        }
+        _ => {}
+    });
 
     // 将 TrayIcon 存储到状态中，以便后续更新菜单
     let state = app.state::<std::sync::Mutex<TrayState>>();

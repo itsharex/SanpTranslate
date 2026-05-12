@@ -7,8 +7,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Tauri-2.x-FFC131?logo=tauri" alt="Tauri 2.x" />
-  <img src="https://img.shields.io/badge/Rust-2021-edition-orange?logo=rust" alt="Rust 2021" />
+  <img src="https://img.shields.io/badge/Tauri-2.x-FFC131" alt="Tauri 2.x" />
+  <img src="https://img.shields.io/badge/Rust-2024-edition-orange?logo=rust" alt="Rust 2024" />
   <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js" alt="Vue 3.5" />
   <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript" alt="TypeScript 5.7" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
@@ -107,7 +107,7 @@
 
 ### 直接下载
 
-从 [Releases](https://github.com/yourusername/SnapTranslate/releases) 页面下载对应平台的最新安装包：
+从 [Releases](https://github.com/XuMingKe-06/SanpTranslate/releases) 页面下载对应平台的最新安装包：
 
 | 平台 | 格式 |
 |------|------|
@@ -157,7 +157,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/yourusername/SnapTranslate.git
+git clone https://github.com/XuMingKe-06/SanpTranslate.git
 cd SnapTranslate
 
 # 2. 安装前端依赖
