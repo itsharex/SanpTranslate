@@ -14,6 +14,13 @@
     >
       {{ selectionWidth }} x {{ selectionHeight }}
     </div>
+    <!-- 高可见性自定义光标：白色十字 + drop-shadow 暗色轮廓，在任何背景上都清晰可见 -->
+    <div ref="cursorRef" class="custom-cursor">
+      <svg width="20" height="20" viewBox="0 0 20 20">
+        <line x1="10" y1="2" x2="10" y2="18" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="10" x2="18" y2="10" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
   </div>
 </template>
 
@@ -29,6 +36,7 @@ const TAG = 'Overlay'
 const { t } = useI18n()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const cursorRef = ref<HTMLElement | null>(null)
 
 // 用普通 JS 变量存储拖拽状态，完全绕过 Vue 响应式系统，消除拖拽卡顿
 let _isSelecting = false
@@ -36,6 +44,10 @@ let _startX = 0
 let _startY = 0
 let _endX = 0
 let _endY = 0
+// 光标位置也用普通变量，避免响应式开销
+let _cursorX = 0
+let _cursorY = 0
+let _cursorDirty = false
 let fullscreenImgElement: HTMLImageElement | null = null
 
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null
@@ -98,6 +110,17 @@ function drawCanvas() {
   }
 }
 
+/** 更新自定义光标 DOM 位置（在 rAF 中调用，避免 Vue ref 响应式开销） */
+function updateCursorPosition() {
+  if (!_cursorDirty) return
+  _cursorDirty = false
+  const el = cursorRef.value
+  if (el) {
+    el.style.left = `${_cursorX}px`
+    el.style.top = `${_cursorY}px`
+  }
+}
+
 function onMouseDown(e: MouseEvent) {
   e.preventDefault()
   _isSelecting = true
@@ -109,7 +132,21 @@ function onMouseDown(e: MouseEvent) {
 }
 
 function onMouseMove(e: MouseEvent) {
-  if (!_isSelecting) return
+  // 更新光标位置（普通变量，无响应式开销）
+  _cursorX = e.clientX
+  _cursorY = e.clientY
+  _cursorDirty = true
+
+  if (!_isSelecting) {
+    // 未在框选时仍需更新光标位置
+    if (rafId === null) {
+      rafId = requestAnimationFrame(() => {
+        updateCursorPosition()
+        rafId = null
+      })
+    }
+    return
+  }
   _endX = e.clientX
   _endY = e.clientY
   // 低频更新 Vue ref，仅用于 size-tip 显示（不影响 canvas 渲染速度）
@@ -125,6 +162,7 @@ function onMouseMove(e: MouseEvent) {
   if (rafId === null) {
     rafId = requestAnimationFrame(() => {
       drawCanvas()
+      updateCursorPosition()
       rafId = null
     })
   }
@@ -328,6 +366,7 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  cursor: none;
 }
 
 .overlay-container canvas {
@@ -348,5 +387,17 @@ onUnmounted(() => {
   pointer-events: none;
   white-space: nowrap;
   z-index: 10;
+}
+
+.custom-cursor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+}
+
+.custom-cursor svg {
+  display: block;
 }
 </style>
