@@ -562,6 +562,12 @@ pub async fn ocr_image(
     Ok(ocr_blocks)
 }
 
+/// 重启应用
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 /// 纯文本翻译命令：接收文本直接翻译，支持历史缓存
 #[tauri::command]
 pub async fn translate_text(

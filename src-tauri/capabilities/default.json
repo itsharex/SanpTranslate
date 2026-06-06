@@ -29,6 +29,7 @@
     "global-shortcut:allow-is-registered",
     "log:default",
     "autostart:default",
+    "updater:default",
     "core:webview:allow-create-webview-window"
   ]
 }

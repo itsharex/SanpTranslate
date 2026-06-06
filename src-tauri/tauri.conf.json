@@ -38,12 +38,24 @@
       "icons/icon.ico"
     ],
     "resources": [],
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "template": "nsis/installer.nsi",
         "installerIcon": "icons/icon.ico",
         "languages": ["SimpChinese", "English"],
         "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDREY4Q0ZDRjYwOEU1OQpSV1Jaam1EUHovak5EL1NpN2RRc0taNnVoUzM3b1RnYy8yb2ZaOXF6N3RRcEJiL1o1R1ZKNlBhSwo=",
+      "endpoints": [
+        "https://github.com/XuMingKe-06/SanpTranslate/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "quiet"
       }
     }
   }

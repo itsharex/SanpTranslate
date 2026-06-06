@@ -8,6 +8,7 @@ mod hotkey;
 mod ocr;
 mod translate;
 mod tray;
+mod update;
 mod window;
 
 use std::sync::Mutex;
@@ -63,7 +64,8 @@ pub fn run() {
             commands::get_history_list,
             commands::get_history_detail,
             commands::delete_history,
-            commands::clear_history
+            commands::clear_history,
+            commands::restart_app
         ])
         .setup(|app| {
             let config_manager = config::ConfigManager::new(app.handle())?;
@@ -119,6 +121,19 @@ pub fn run() {
 
             #[cfg(desktop)]
             hotkey::register_hotkeys(app.handle(), &app_config.shortcuts)?;
+
+            // 自动更新检查（仅 release 模式且开启了自动更新时执行）
+            #[cfg(all(desktop, not(debug_assertions)))]
+            {
+                if app_config.auto_update {
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = update::check_and_install_update(&handle).await {
+                            log::error!("自动更新检查失败: {}", e);
+                        }
+                    });
+                }
+            }
 
             Ok(())
         })

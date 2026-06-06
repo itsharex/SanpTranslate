@@ -13,6 +13,8 @@ export interface AppConfig {
   language: string
   /** OCR 识别语言（"eng", "chi_sim", "jpn"） */
   ocr_language: string
+  /** 是否开启自动更新 */
+  auto_update: boolean
   /** 快捷键配置 */
   shortcuts: ShortcutConfig
 }
@@ -250,4 +252,9 @@ export async function disableAutoStart(): Promise<void> {
 /** 查询开机自启动是否已开启 */
 export async function isAutoStartEnabled(): Promise<boolean> {
   return autostartIsEnabled()
+}
+
+/** 重启应用（更新后使用） */
+export async function restartApp(): Promise<void> {
+  return invoke('restart_app')
 }

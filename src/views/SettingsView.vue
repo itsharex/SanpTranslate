@@ -29,6 +29,67 @@
             </n-form>
           </n-card>
 
+          <!-- 更新设置区域 -->
+          <n-card :title="t('settings.updateConfig')" size="small">
+            <n-form label-placement="left" label-width="100" :show-feedback="false">
+              <!-- 当前版本 -->
+              <n-form-item :label="t('settings.currentVersion')">
+                <n-text style="font-size: 13px">{{ appVersion }}</n-text>
+              </n-form-item>
+              <!-- 自动更新开关 -->
+              <n-form-item :label="t('settings.autoUpdate')">
+                <n-switch
+                  v-model:value="formData.auto_update"
+                />
+              </n-form-item>
+              <!-- 手动检查更新 -->
+              <n-form-item :label="t('settings.checkUpdate')">
+                <n-space align="center" :size="8">
+                  <n-button
+                    size="small"
+                    :loading="checkingUpdate"
+                    :disabled="isDev"
+                    @click="onCheckUpdate"
+                  >
+                    {{ t('settings.checkUpdateBtn') }}
+                  </n-button>
+                  <!-- 开发模式提示 -->
+                  <n-text v-if="isDev" depth="3" style="font-size: 12px">
+                    {{ t('settings.updateDisabledInDev') }}
+                  </n-text>
+                </n-space>
+              </n-form-item>
+              <!-- 更新状态信息 -->
+              <n-form-item v-if="updateStatus" :label="t('settings.updateStatus')">
+                <n-space align="center" :size="8" style="width: 100%">
+                  <n-text :type="updateStatusType" style="font-size: 13px; flex: 1">
+                    {{ updateStatus }}
+                  </n-text>
+                  <!-- 下载并安装按钮 -->
+                  <n-button
+                    v-if="pendingUpdate"
+                    size="small"
+                    type="primary"
+                    :loading="downloadingUpdate"
+                    @click="onDownloadAndInstall"
+                  >
+                    {{ t('settings.downloadAndInstall') }}
+                  </n-button>
+                </n-space>
+              </n-form-item>
+              <!-- 下载进度条 -->
+              <n-form-item v-if="downloadingUpdate" :label="t('settings.downloadProgress')">
+                <n-progress
+                  type="line"
+                  :percentage="downloadProgress"
+                  :show-indicator="true"
+                  status="info"
+                  style="width: 100%"
+                />
+              </n-form-item>
+            </n-form>
+          </n-card>
+
           <!-- API 配置区域 -->
           <n-card :title="t('settings.apiConfig')" size="small">
             <n-form label-placement="left" label-width="100" :show-feedback="false">
@@ -166,12 +227,17 @@ import {
   NTooltip,
   NIcon,
   NSwitch,
+  NProgress,
   createDiscreteApi,
 } from 'naive-ui'
+import { check, type Update, type DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useConfigStore } from '@/stores/configStore'
-import { testApiConnection, deleteApiKey, getConfigPath, enableAutoStart, disableAutoStart, isAutoStartEnabled, type AppConfig } from '@/utils/tauri'
+import { testApiConnection, deleteApiKey, getConfigPath, enableAutoStart, disableAutoStart, isAutoStartEnabled, restartApp, type AppConfig } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
 import ShortcutInput from '@/components/ShortcutInput.vue'
+
+// 更新信息类型（来自 @tauri-apps/plugin-updater 的 Update 类）
+// 使用 Update 类型替代自定义接口，确保类型安全
 
 const TAG = 'SettingsView'
 const { t, locale } = useI18n()
@@ -190,6 +256,14 @@ const DEFAULT_CAPTURE_SHORTCUT = 'Ctrl+Alt+L'
 const DEFAULT_PIN_CLIPBOARD_SHORTCUT = 'Ctrl+Alt+P'
 const DEFAULT_TEXT_TRANSLATE_SHORTCUT = 'Ctrl+Alt+M'
 
+// 检测是否为开发模式（通过检查 URL 是否为 localhost 判断）
+const isDev = computed(() => {
+  return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+})
+
+// 当前应用版本（从 package.json 或 tauri.conf.json 读取）
+const appVersion = __APP_VERSION__
+
 // 表单数据（扁平化结构，方便 v-model 双向绑定）
 const formData = reactive({
   api_base_url: '',
@@ -198,6 +272,7 @@ const formData = reactive({
   target_language: 'zh-CN',
   language: 'auto',
   ocr_language: 'auto',
+  auto_update: true,
   shortcuts_capture: '',
   shortcuts_pin_clipboard: '',
   shortcuts_text_translate: '',
@@ -213,6 +288,14 @@ const configPath = ref('')
 // 开机自启动状态
 const autoStartEnabled = ref(false)
 const autoStartLoading = ref(false)
+
+// 更新相关状态
+const checkingUpdate = ref(false)
+const downloadingUpdate = ref(false)
+const downloadProgress = ref(0)
+const updateStatus = ref('')
+const updateStatusType = ref<'success' | 'error' | 'warning' | 'info'>('info')
+const pendingUpdate = ref<Update | null>(null)
 
 // 是否已有 API 密钥（从 keyring 读取）
 const hasApiKey = computed(() => !!configStore.apiKey)
@@ -252,6 +335,7 @@ function populateForm(config: AppConfig) {
   formData.target_language = config.target_language
   formData.language = config.language || 'auto'
   formData.ocr_language = config.ocr_language || 'auto'
+  formData.auto_update = config.auto_update !== undefined ? config.auto_update : true
   formData.shortcuts_capture = config.shortcuts.capture
   formData.shortcuts_pin_clipboard = config.shortcuts.pin_clipboard
   formData.shortcuts_text_translate = config.shortcuts.text_translate
@@ -303,6 +387,7 @@ async function onSave() {
       target_language: formData.target_language,
       language: formData.language,
       ocr_language: formData.ocr_language,
+      auto_update: formData.auto_update,
       shortcuts: {
         capture: formData.shortcuts_capture.trim(),
         pin_clipboard: formData.shortcuts_pin_clipboard.trim(),
@@ -422,6 +507,99 @@ async function onToggleAutoStart(enabled: boolean) {
     logger.error(TAG, `设置开机自启动失败: ${err}`)
   } finally {
     autoStartLoading.value = false
+  }
+}
+
+/** 手动检查更新 */
+async function onCheckUpdate() {
+  if (isDev.value) {
+    updateStatus.value = t('settings.updateDisabledInDev')
+    updateStatusType.value = 'warning'
+    return
+  }
+
+  checkingUpdate.value = true
+  pendingUpdate.value = null
+  updateStatus.value = t('settings.checkingUpdate')
+  updateStatusType.value = 'info'
+
+  try {
+    const update = await check()
+
+    if (update) {
+      // 发现新版本
+      const versionInfo = `v${update.version}`
+      const dateInfo = update.date ? ` (${update.date})` : ''
+      updateStatus.value = t('settings.updateAvailable', { version: versionInfo, date: dateInfo })
+      updateStatusType.value = 'info'
+      pendingUpdate.value = update
+      logger.info(TAG, `发现新版本: ${versionInfo}`)
+    } else {
+      // 已是最新版本
+      updateStatus.value = t('settings.alreadyLatest')
+      updateStatusType.value = 'success'
+      logger.info(TAG, '当前已是最新版本')
+    }
+  } catch (err) {
+    updateStatus.value = t('settings.checkUpdateFailed', { error: String(err) })
+    updateStatusType.value = 'error'
+    logger.error(TAG, `检查更新失败: ${err}`)
+  } finally {
+    checkingUpdate.value = false
+  }
+}
+
+/** 下载并安装更新 */
+async function onDownloadAndInstall() {
+  if (!pendingUpdate.value) return
+
+  downloadingUpdate.value = true
+  downloadProgress.value = 0
+  updateStatus.value = t('settings.downloadingUpdate')
+  updateStatusType.value = 'info'
+
+  try {
+    let downloaded = 0
+    let contentLength = 0
+
+    await pendingUpdate.value.downloadAndInstall((event: DownloadEvent) => {
+      switch (event.event) {
+        case 'Started':
+          contentLength = event.data.contentLength ?? 0
+          logger.info(TAG, `开始下载更新，总大小: ${contentLength} 字节`)
+          break
+        case 'Progress':
+          downloaded += event.data.chunkLength
+          if (contentLength > 0) {
+            downloadProgress.value = Math.round((downloaded / contentLength) * 100)
+          }
+          break
+        case 'Finished':
+          downloadProgress.value = 100
+          updateStatus.value = t('settings.updateDownloaded')
+          updateStatusType.value = 'success'
+          logger.info(TAG, '更新下载完成')
+          break
+      }
+    })
+
+    // 安装完成，提示重启
+    dialog.success({
+      title: t('settings.updateReady'),
+      content: t('settings.updateReadyContent'),
+      positiveText: t('settings.restartNow'),
+      negativeText: t('settings.restartLater'),
+      onPositiveClick: async () => {
+        await restartApp()
+      },
+    })
+  } catch (err) {
+    updateStatus.value = t('settings.downloadFailed', { error: String(err) })
+    updateStatusType.value = 'error'
+    logger.error(TAG, `下载安装更新失败: ${err}`)
+  } finally {
+    downloadingUpdate.value = false
+    pendingUpdate.value = null
   }
 }
 
