@@ -139,6 +139,13 @@ pub fn reregister_hotkeys(app: &tauri::AppHandle, new_config: &ShortcutConfig) -
 /// 截屏流程（托盘菜单点击触发）：延迟 250ms 等待托盘菜单从屏幕上消失后再截图
 /// 快捷键触发时直接使用 handle_capture_hotkey，无需此延迟
 pub fn handle_capture_flow(app: &tauri::AppHandle) -> Result<(), AppError> {
+    // Windows: 立即创建蒙版窗口，让用户感知蒙版已响应
+    // content_protected 防止截图时捕获蒙版窗口
+    #[cfg(target_os = "windows")]
+    if let Err(e) = crate::window::create_overlay_window_lazy(app) {
+        log::error!("[HOTKEY] 创建 overlay 窗口失败: {}", e);
+    }
+
     let app_clone = app.clone();
     std::thread::spawn(move || {
         // 等待托盘菜单弹出框完全从屏幕消失（系统菜单关闭动画 + 合成器刷新）
@@ -179,15 +186,18 @@ pub fn handle_capture_flow(app: &tauri::AppHandle) -> Result<(), AppError> {
                 });
             }
 
-            // 切回主线程创建蒙版窗口（GTK 窗口必须在主线程创建）
-            let app_main = app_clone.clone();
-            app_clone.run_on_main_thread(move || {
-                if let Err(e) = crate::window::create_overlay_window_lazy(&app_main) {
-                    log::error!("[HOTKEY] 创建 overlay 窗口失败: {}", e);
-                } else {
-                    log::info!("[HOTKEY] overlay 窗口创建成功（屏幕数据已就绪，后台编码截图中...）");
-                }
-            }).ok();
+            // Linux/macOS: 截图完成后切回主线程创建蒙版窗口（GTK 窗口必须在主线程创建）
+            #[cfg(not(target_os = "windows"))]
+            {
+                let app_main = app_clone.clone();
+                app_clone.run_on_main_thread(move || {
+                    if let Err(e) = crate::window::create_overlay_window_lazy(&app_main) {
+                        log::error!("[HOTKEY] 创建 overlay 窗口失败: {}", e);
+                    } else {
+                        log::info!("[HOTKEY] overlay 窗口创建成功（屏幕数据已就绪，后台编码截图中...）");
+                    }
+                }).ok();
+            }
 
             // 后台编码 JPEG（用于蒙版背景显示）
             let app_jpeg = app_clone.clone();
@@ -216,6 +226,11 @@ pub fn handle_capture_flow(app: &tauri::AppHandle) -> Result<(), AppError> {
 
         if let Err(e) = result {
             log::error!("[HOTKEY] 截图流程处理失败: {}", e);
+            // Windows: 截图失败时销毁已创建的蒙版窗口
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app_clone.get_webview_window("overlay") {
+                let _ = window.destroy();
+            }
         }
     });
 
@@ -224,6 +239,14 @@ pub fn handle_capture_flow(app: &tauri::AppHandle) -> Result<(), AppError> {
 
 fn handle_capture_hotkey(app: &tauri::AppHandle) {
     log::info!("[HOTKEY] 截图快捷键触发");
+
+    // Windows: 立即创建蒙版窗口，让用户感知蒙版已响应
+    // content_protected 防止截图时捕获蒙版窗口
+    #[cfg(target_os = "windows")]
+    if let Err(e) = crate::window::create_overlay_window_lazy(app) {
+        log::error!("[HOTKEY] 创建 overlay 窗口失败: {}", e);
+        return;
+    }
 
     // 将耗时的 xcap 截图操作放到后台线程，快捷键回调立即返回
     // xcap::Monitor::capture_image() 在 Linux X11 下可能耗时 200-600ms
@@ -265,15 +288,18 @@ fn handle_capture_hotkey(app: &tauri::AppHandle) {
                 });
             }
 
-            // --- 截图完成，切回主线程创建 GTK 窗口 ---
-            let app_main = app_clone.clone();
-            app_clone.run_on_main_thread(move || {
-                if let Err(e) = crate::window::create_overlay_window_lazy(&app_main) {
-                    log::error!("[HOTKEY] 创建 overlay 窗口失败: {}", e);
-                } else {
-                    log::info!("[HOTKEY] overlay 窗口已创建（截图数据已就绪）");
-                }
-            }).ok();
+            // Linux/macOS: 截图完成后切回主线程创建蒙版窗口（GTK 窗口必须在主线程创建）
+            #[cfg(not(target_os = "windows"))]
+            {
+                let app_main = app_clone.clone();
+                app_clone.run_on_main_thread(move || {
+                    if let Err(e) = crate::window::create_overlay_window_lazy(&app_main) {
+                        log::error!("[HOTKEY] 创建 overlay 窗口失败: {}", e);
+                    } else {
+                        log::info!("[HOTKEY] overlay 窗口已创建（截图数据已就绪）");
+                    }
+                }).ok();
+            }
 
             // 后台编码 JPEG（用于蒙版背景显示）
             let app_jpeg = app_clone.clone();
@@ -302,6 +328,11 @@ fn handle_capture_hotkey(app: &tauri::AppHandle) {
 
         if let Err(e) = result {
             log::error!("[HOTKEY] 截图快捷键处理失败: {}", e);
+            // Windows: 截图失败时销毁已创建的蒙版窗口
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app_clone.get_webview_window("overlay") {
+                let _ = window.destroy();
+            }
         }
     });
 }

@@ -203,6 +203,12 @@ pub fn create_overlay_window_lazy(app: &AppHandle) -> Result<(), AppError> {
             AppError::ConfigError(format!("锁定缓存失败: {}", e))
         })?;
         store.overlay_image = None;
+        // Windows: 蒙版窗口在截图前创建，需清除旧截图缓存防止使用过期数据
+        // Linux/macOS: 蒙版窗口在截图后创建，不能在此清除截图缓存（否则会清掉刚存入的数据）
+        #[cfg(target_os = "windows")]
+        {
+            store.screen = None;
+        }
     }
 
     create_overlay_window_inner(app)
@@ -256,6 +262,11 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
             .always_on_top(true);
         #[cfg(not(target_os = "macos"))]
         let builder = builder.transparent(true);
+
+        // 防止截图 API 捕获蒙版窗口内容（Windows 10 2004+ / Windows 11 有效）
+        // 仅 Windows 平台启用：Linux 上蒙版窗口在截图后创建，无需此标志
+        #[cfg(target_os = "windows")]
+        let builder = builder.content_protected(true);
 
         let builder = if is_wayland {
             builder.fullscreen(true)
