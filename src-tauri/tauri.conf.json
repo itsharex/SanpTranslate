@@ -50,7 +50,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDREY4Q0ZDRjYwOEU1OQpSV1Jaam1EUHovak5EL1NpN2RRc0taNnVoUzM3b1RnYy8yb2ZaOXF6N3RRcEJiL1o1R1ZKNlBhSwo=",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE4ODUxN0E1OEU2MERERDAKUldUUTNXQ09wUmVGcUdPWURITlM0d0xhcGtTa0x2NEM5eVJkdmEvNXhYODVnZ25RZzA1eFI1T3QK",
       "endpoints": [
         "https://github.com/XuMingKe-06/SanpTranslate/releases/latest/download/latest.json"
       ],

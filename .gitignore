@@ -83,6 +83,7 @@ htmlcov/
 # Tauri
 src-tauri/target/
 src-tauri/WixTools
+.tauri/
 
 # Vite
 dist-ssr/
