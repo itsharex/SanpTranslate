@@ -210,7 +210,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted } from 'vue'
+import { reactive, ref, shallowRef, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   darkTheme,
@@ -295,7 +295,9 @@ const downloadingUpdate = ref(false)
 const downloadProgress = ref(0)
 const updateStatus = ref('')
 const updateStatusType = ref<'success' | 'error' | 'warning' | 'info'>('info')
-const pendingUpdate = ref<Update | null>(null)
+// 使用 shallowRef 避免 Vue 将 Update 对象包装为 Proxy，
+// 否则 Update 类的私有字段 (#private) 在 Proxy 上无法访问，会导致 TypeError
+const pendingUpdate = shallowRef<Update | null>(null)
 
 // 是否已有 API 密钥（从 keyring 读取）
 const hasApiKey = computed(() => !!configStore.apiKey)
