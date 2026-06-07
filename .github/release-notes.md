@@ -1,4 +1,4 @@
-# SnapTranslate v1.2.1
+# SnapTranslate v1.2.2
 
 ## 更新内容
 
