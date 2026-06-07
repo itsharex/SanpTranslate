@@ -385,6 +385,13 @@ pub fn get_config_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(config_manager.get_config_path().to_string_lossy().to_string())
 }
 
+/// 获取日志文件目录路径
+#[tauri::command]
+pub fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let log_dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+    Ok(log_dir.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 pub async fn test_api_connection(
     api_base_url: String,

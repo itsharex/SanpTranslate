@@ -209,6 +209,11 @@ export async function getConfigPath(): Promise<string> {
   return invoke<string>('get_config_path')
 }
 
+/** 获取日志文件目录路径 */
+export async function getLogDir(): Promise<string> {
+  return invoke<string>('get_log_dir')
+}
+
 /** 测试 API 连接是否可用 */
 export async function testApiConnection(
   apiBaseUrl: string,

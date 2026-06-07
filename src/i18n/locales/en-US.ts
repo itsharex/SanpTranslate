@@ -73,6 +73,7 @@ export default {
     connectionSuccess: 'Connection successful',
     connectionFailed: 'Connection failed',
     configFilePath: 'Config File Path',
+    logFilePath: 'Log File Path',
     deleteApiKey: 'Delete Key',
     confirmDeleteApiKey: 'Are you sure you want to delete the saved API key?',
     apiKeyDeleted: 'API key deleted',

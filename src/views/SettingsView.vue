@@ -188,8 +188,17 @@
           <!-- 配置文件路径提示 -->
           <n-card :title="t('settings.configFilePath')" size="small">
             <n-space align="center" :size="8">
-              <n-text code style="font-size: 12px; word-break: break-all; flex: 1">
+              <n-text code class="selectable-path" style="font-size: 12px; word-break: break-all; flex: 1">
                 {{ configPath || t('common.loading') }}
+              </n-text>
+            </n-space>
+          </n-card>
+
+          <!-- 日志文件路径提示 -->
+          <n-card :title="t('settings.logFilePath')" size="small">
+            <n-space align="center" :size="8">
+              <n-text code class="selectable-path" style="font-size: 12px; word-break: break-all; flex: 1">
+                {{ logDir || t('common.loading') }}
               </n-text>
             </n-space>
           </n-card>
@@ -232,7 +241,7 @@ import {
 } from 'naive-ui'
 import { check, type Update, type DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useConfigStore } from '@/stores/configStore'
-import { testApiConnection, deleteApiKey, getConfigPath, enableAutoStart, disableAutoStart, isAutoStartEnabled, restartApp, type AppConfig } from '@/utils/tauri'
+import { testApiConnection, deleteApiKey, getConfigPath, getLogDir, enableAutoStart, disableAutoStart, isAutoStartEnabled, restartApp, type AppConfig } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
 import ShortcutInput from '@/components/ShortcutInput.vue'
 
@@ -284,6 +293,7 @@ const saving = ref(false)
 const testing = ref(false)
 const deleting = ref(false)
 const configPath = ref('')
+const logDir = ref('')
 
 // 开机自启动状态
 const autoStartEnabled = ref(false)
@@ -609,11 +619,12 @@ async function onDownloadAndInstall() {
 onMounted(async () => {
   loading.value = true
   try {
-    // 并行加载配置、API 密钥、配置文件路径和开机自启动状态
-    const [, , path, autoStart] = await Promise.all([
+    // 并行加载配置、API 密钥、配置文件路径、日志目录路径和开机自启动状态
+    const [, , path, logPath, autoStart] = await Promise.all([
       configStore.loadConfig(),
       configStore.loadApiKey(),
       getConfigPath(),
+      getLogDir().catch(() => ''),
       isAutoStartEnabled().catch(() => false),
     ])
 
@@ -624,6 +635,9 @@ onMounted(async () => {
 
     // 保存配置文件路径
     configPath.value = path
+
+    // 保存日志目录路径
+    logDir.value = logPath
 
     // 保存开机自启动状态
     autoStartEnabled.value = autoStart
@@ -655,5 +669,12 @@ onMounted(async () => {
 /* 表单项之间增加间距 */
 .settings-container :deep(.n-form-item) {
   margin-bottom: 12px;
+}
+
+/* 路径文字可选中，鼠标变为 I 形 */
+.selectable-path {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 </style>
