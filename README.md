@@ -1,6 +1,6 @@
 # SnapTranslate
 
-<h3 align="center">极简 · 高效 · 隐私安全的桌面截屏翻译工具</h3>
+<h3 align="center">Minimal · Efficient · Privacy-First Desktop Screenshot Translation Tool</h3>
 
 <p align="center">
   <img src="src-tauri/icons/icon.png" width="128" alt="SnapTranslate Logo" />
@@ -16,124 +16,123 @@
 </p>
 
 <p align="center">
-  <a href="README.md">简体中文</a> · <a href="README.en.md">English</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
+  <a href="README.zh.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.md">English</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
 </p>
 
 ---
 
-## 简介
+## Introduction
 
-**SnapTranslate** 是一款面向开发者和外语学习者的桌面截屏贴图翻译工具。框选屏幕任意区域，瞬间完成 OCR 文字识别 + AI 翻译，译文通过右侧面板清晰展示，原文与译文对照一目了然。
+**SnapTranslate** is a desktop screenshot translation tool designed for developers and language learners. Select any region on the screen to instantly perform OCR text recognition + AI translation, with the translated text displayed in a right-side panel — original and translation side by side at a glance.
 
-**核心理念：** 一键框选 → 原位贴图 → 面板译文
+**Core Philosophy:** One-click region select → In-place pin → Panel translation
 
-> 截图贴图在原始位置，译文在右侧面板展示 — 不弹窗、不跳转、不打断工作流。
-
----
-
-## 功能特性
-
-| 特性 | 说明 |
-|------|------|
-| **框选截图翻译** | 全局快捷键 `Ctrl+Alt+L` 唤起截图蒙版，拖拽框选任意区域（自定义十字准星光标），截图自动贴在屏幕原位 |
-| **剪贴板贴图** | `Ctrl+Alt+P` 将系统剪贴板中的图片贴到桌面上进行翻译 |
-| **文本翻译** | `Ctrl+Alt+M` 打开简洁文本翻译窗口，支持自定义目标语言，Ctrl+Enter 快捷翻译 |
-| **本地 OCR** | 内置 Tesseract 离线引擎，支持中简、英、日多国语言，支持本地智能自动语言检测，可在设置中选择 OCR 源语言（自动/中文/英文/日文），无需联网 |
-| **AI 翻译** | 支持任意 OpenAI 兼容 API（自备模型与密钥），与你的 AI 能力直接对接 |
-| **智能翻译缓存** | 重复内容自动匹配历史记录，命中缓存则跳过 API 调用，秒出结果 |
-| **原位贴图窗口** | 截图固定在原始截取位置，右侧译文面板支持高度拉伸，深色透明无干扰 |
-| **原文/译文切换** | 一键切换显示截图原文与 AI 翻译结果，对照学习更方便 |
-| **一键复制** | 支持复制原文、复制译文到系统剪贴板 |
-| **翻译历史** | 自动保存所有翻译记录到本地 SQLite 数据库，支持查看、复制、删除、清空 |
-| **双语界面** | 简体中文 / English 双语言界面，支持跟随系统自动切换，切换即时生效 |
-| **隐私安全** | 截图和文字全在本地处理，仅翻译请求与自配 API 通信，**无任何遥测或数据上传** |
-| **自动更新** | 应用启动时自动检查更新，发现新版本静默下载安装，完成后自动重启 |
-| **开机自启动** | 可选开机自动启动，随时待命 |
+> Screenshots are pinned at their original position, translations shown in the right panel — no popups, no page jumps, no workflow interruption.
 
 ---
 
-## 使用流程
+## Features
 
-### 1. 配置大模型 API
+| Feature | Description |
+|---------|-------------|
+| **Region Screenshot Translation** | Global hotkey `Ctrl+Alt+L` activates the overlay (custom crosshair cursor), drag to select any region, screenshot pinned at original position automatically |
+| **Clipboard Pin** | `Ctrl+Alt+P` pastes an image from the system clipboard onto the desktop for translation |
+| **Text Translation** | `Ctrl+Alt+M` opens a clean text translation window with customizable target language, `Ctrl+Enter` for quick translation |
+| **Local OCR** | Built-in Tesseract offline engine, supports Chinese, English, and Japanese, supports local smart auto-detection, configurable OCR source language in settings (auto/Chinese/English/Japanese) — no internet required |
+| **AI Translation** | Supports any OpenAI-compatible API (bring your own model and key), directly connecting to your AI capabilities |
+| **Smart Translation Cache** | Repeated content automatically matches historical records; cache hit skips the API call for instant results |
+| **In-Place Pin Window** | Screenshot fixed at the original capture position, right-side translation panel supports height adjustment, transparent dark theme for distraction-free viewing |
+| **Original/Translation Toggle** | One-click switch between the original screenshot text and AI translation results, convenient for side-by-side learning |
+| **One-Click Copy** | Copy original text or translated text to the system clipboard |
+| **Translation History** | All translation records automatically saved to local SQLite database; supports viewing, copying, deleting, and clearing |
+| **Bilingual UI** | Simplified Chinese / English interface with auto-detect system language support, instant switching |
+| **Privacy & Security** | Screenshots and text processed entirely locally; only translation requests communicate with your own API — **no telemetry or data upload** |
+| **Auto Update** | Automatically checks for updates on startup, silently downloads and installs new versions, restarts automatically upon completion |
+| **Auto Start** | Optional auto-start on boot, always ready when you need it |
 
-首次使用，右键系统托盘图标 → **设置**，填入：
+---
 
-- **API 地址**：任意兼容 OpenAI 格式的 API 端点
-- **API 密钥**：通过操作系统凭据管理器安全保存，不落盘
-- **模型名称**：例如 `gpt-4o`、`deepseek-chat` 等
-- **目标语言**：翻译成中文、英语、日语、法语等 9 种语言
-- **OCR 源语言**：设置 OCR 识别的源语言（自动检测/中文/英文/日文），提升识别准确度
-- **自动更新**：可选开启或关闭启动时自动检查更新
+## Workflow
 
-### 2. 常用操作
+### 1. Configure AI API
+
+On first use, right-click the system tray icon → **Settings**, then fill in:
+
+- **API URL**: Any OpenAI-compatible API endpoint
+- **API Key**: Securely saved via the OS credential manager, never written to disk
+- **Model Name**: e.g., `gpt-4o`, `deepseek-chat`, etc.
+- **Target Language**: Translate to Chinese, English, Japanese, French, and 6 other languages
+- **OCR Source Language**: Set the OCR source language (auto-detect/Chinese/English/Japanese) for improved recognition accuracy
+- **Auto Update**: Optionally enable or disable automatic update checking on startup
+
+### 2. Common Operations
 
 ```
-按 Ctrl+Alt+L         框选截图并贴图到原位
-                         ↓
-点击贴图下方「翻译」按钮    OCR + AI 翻译，译文在右侧面板展示
-                         ↓
-点击「复制译文」         将译文复制到剪贴板
-                         ↓
-下次截到相同内容         自动命中缓存，即刻显示译文
+Press Ctrl+Alt+L         Select region, screenshot pinned at original position
+                              ↓
+Click "Translate" button     OCR + AI translation, results displayed in the right panel
+                              ↓
+Click "Copy Translation"     Copy translated text to clipboard
+                              ↓
+Same content next time       Auto cache hit, results shown instantly
 
-按 Ctrl+Alt+P         将系统剪贴板图片贴到桌面翻译
-按 Ctrl+Alt+M         打开文本翻译窗口，输入文本直接翻译
+Press Ctrl+Alt+P         Pin clipboard image to desktop for translation
+Press Ctrl+Alt+M         Open text translation window, type and translate directly
 ```
 
-### 3. 贴图窗口操作
+### 3. Pin Window Operations
 
-| 操作 | 位置 | 说明 |
-|------|------|------|
-| 翻译 | 控制栏 | 一键 OCR + AI 翻译 |
-| 重新翻译 | 控制栏 | 跳过缓存，强制重新翻译 |
-| 复制原文/译文 | 控制栏 | 一键复制到剪贴板 |
-| 原文/译文切换 | 控制栏 | 对照查看翻译前后内容 |
-| 拖拽窗口 | 窗口标题区 | 排除按钮区域，可任意拖拽 |
-| 拉伸译文面板 | 面板边缘 | 右侧面板支持高度拉伸 |
-| 关闭 | 双击图片区域 | 快速关闭贴图窗口 |
-
----
-
-## 截图展示
-
-> 以下为应用运行界面预览（项目配套有完整的 logo 设计页面 `logo-design.html`）：
-
-| 模块 | 预览 |
-|------|------|
-| **截图蒙版** | 半透明暗色遮罩 + 白虚线框选 + 尺寸提示 + 十字准星光标 |
-| **贴图窗口** | 截图原位置置顶显示 + 底部控制栏 + 右侧译文面板 |
-| **设置页面** | Naive UI 深色主题，分区域配置：语言/通用/API/翻译/OCR/快捷键 |
-| **历史记录** | 缩略图列表 + 翻译摘要 + 操作按钮 |
-| **文本翻译** | 屏幕下方居中置顶窗口，简洁双栏布局 |
-
-> 可运行应用实地体验所有界面。
+| Operation | Location | Description |
+|-----------|----------|-------------|
+| Translate | Control bar | One-click OCR + AI translation |
+| Retranslate | Control bar | Skip cache, force retranslation |
+| Copy Original/Translation | Control bar | One-click copy to clipboard |
+| Toggle Original/Translation | Control bar | Compare before and after translation |
+| Drag Window | Window title area | Freely drag (excluding button areas) |
+| Stretch Translation Panel | Panel edge | Right panel supports height adjustment |
+| Close | Double-click image area | Quickly close the pin window |
 
 ---
 
-## 下载安装
+## Screenshots
 
-### 直接下载
+> Below are previews of the application interface (the project includes a complete logo design page `logo-design.html`):
 
-从 [Releases](https://github.com/XuMingKe-06/SanpTranslate/releases) 页面下载对应平台的最新安装包：
+| Module | Preview |
+|--------|---------|
+| **Selection Overlay** | Semi-transparent dark mask + white dashed selection box + dimension indicator + crosshair cursor |
+| **Pin Window** | Screenshot displayed on top at original position + bottom control bar + right translation panel |
+| **Settings Page** | Naive UI dark theme, sectioned configuration: Language/General/API/Translation/OCR/Hotkeys |
+| **History** | Thumbnail list + translation summary + action buttons |
+| **Text Translation** | Centered on-bottom always-on-top window, clean dual-column layout |
 
-| 平台 | 格式 |
-|------|------|
+> Run the application to experience all interfaces first-hand.
+
+---
+
+## Download & Installation
+
+### Direct Download
+
+Download the latest installer for your platform from the [Releases](https://github.com/XuMingKe-06/SanpTranslate/releases) page:
+
+| Platform | Format |
+|----------|--------|
 | Windows 10+ | `.exe` |
 | macOS 12+ | `.dmg` |
 | Linux (x86\_64) | `.AppImage` |
 
-### 系统要求
+### System Requirements
 
-- **Windows**: Windows 10 (1803+)，需 WebView2（系统自带）
-- **macOS**: macOS 12+，需 WebKit（系统自带），且需通过 Homebrew 安装 Tesseract 及语言包：
+- **Windows**: Windows 10 (1803+), WebView2 (included with the system)
+- **macOS**: macOS 12+, WebKit (included with the system), with Tesseract and language data installed via Homebrew:
   ```bash
   brew install tesseract tesseract-lang
   ```
-- **Linux**: 支持 X11/Wayland，需 WebKitGTK，且需安装 Tesseract 引擎及对应的语言包（自动检测和纯语言模式均需对应的 `.traineddata` 文件）：
+- **Linux**: X11/Wayland support, WebKitGTK required, with Tesseract OCR engine and required language packs installed:
   - **Ubuntu / Debian**:
     ```bash
     sudo apt update
-    # 安装 Tesseract 引擎及中文简体、英文、日语语言包
     sudo apt install tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng tesseract-ocr-jpn
     ```
   - **Arch Linux**:
@@ -143,183 +142,183 @@
 
 ---
 
-## 技术栈
+## Tech Stack
 
-| 层级 | 技术 |
-|------|------|
-| 桌面框架 | [Tauri 2.x](https://v2.tauri.app/) |
-| 前端框架 | [Vue 3.5](https://vuejs.org/) + [TypeScript](https://www.typescriptlang.org/) + [Vite 6](https://vitejs.dev/) |
-| UI 组件库 | [Naive UI](https://www.naiveui.com/)（深色主题） |
-| 后端语言 | [Rust](https://www.rust-lang.org/)（2024 edition） |
-| 状态管理 | [Pinia 3](https://pinia.vuejs.org/) |
-| 路由 | [Vue Router 5](https://router.vuejs.org/) |
-| 国际化 | [vue-i18n 11](https://vue-i18n.intlify.dev/) |
-| 屏幕截图 | [xcap](https://crates.io/crates/xcap) |
-| OCR | Tesseract CLI（支持中简、英、日等多语言，支持本地智能自动语言检测） |
-| AI 翻译 | HTTP (reqwest) → OpenAI 兼容 API |
-| 数据库 | SQLite ([rusqlite](https://crates.io/crates/rusqlite)) |
-| 安全存储 | [keyring](https://crates.io/crates/keyring)（OS 凭据管理器） |
-| 全局快捷键 | [tauri-plugin-global-shortcut](https://github.com/tauri-apps/tauri-plugin-global-shortcut) |
-| 剪贴板 | [tauri-plugin-clipboard-manager](https://github.com/tauri-apps/tauri-plugin-clipboard-manager) |
-| 开机自启 | [tauri-plugin-autostart](https://github.com/tauri-apps/tauri-plugin-autostart) |
-| 自动更新 | [tauri-plugin-updater](https://github.com/tauri-apps/tauri-plugin-updater) |
+| Layer | Technology |
+|-------|------------|
+| Desktop Framework | [Tauri 2.x](https://v2.tauri.app/) |
+| Frontend Framework | [Vue 3.5](https://vuejs.org/) + [TypeScript](https://www.typescriptlang.org/) + [Vite 6](https://vitejs.dev/) |
+| UI Component Library | [Naive UI](https://www.naiveui.com/) (Dark Theme) |
+| Backend Language | [Rust](https://www.rust-lang.org/) (2024 edition) |
+| State Management | [Pinia 3](https://pinia.vuejs.org/) |
+| Routing | [Vue Router 5](https://router.vuejs.org/) |
+| Internationalization | [vue-i18n 11](https://vue-i18n.intlify.dev/) |
+| Screen Capture | [xcap](https://crates.io/crates/xcap) |
+| OCR | Tesseract CLI (supports Chinese, English, and Japanese, supports local smart auto-detection) |
+| AI Translation | HTTP (reqwest) → OpenAI-compatible API |
+| Database | SQLite ([rusqlite](https://crates.io/crates/rusqlite)) |
+| Secure Storage | [keyring](https://crates.io/crates/keyring) (OS credential manager) |
+| Global Hotkeys | [tauri-plugin-global-shortcut](https://github.com/tauri-apps/tauri-plugin-global-shortcut) |
+| Clipboard | [tauri-plugin-clipboard-manager](https://github.com/tauri-apps/tauri-plugin-clipboard-manager) |
+| Auto Start | [tauri-plugin-autostart](https://github.com/tauri-apps/tauri-plugin-autostart) |
+| Auto Update | [tauri-plugin-updater](https://github.com/tauri-apps/tauri-plugin-updater) |
 
 ---
 
-## 从源码构建
+## Build from Source
 
-### 环境准备
+### Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 18
 - [Rust](https://www.rust-lang.org/) >= 1.85
 - [Tauri CLI](https://v2.tauri.app/start/cli/)
 
-### 构建步骤
+### Build Steps
 
 ```bash
-# 1. 克隆仓库
+# 1. Clone the repository
 git clone https://github.com/XuMingKe-06/SanpTranslate.git
 cd SnapTranslate
 
-# 2. 安装前端依赖
+# 2. Install frontend dependencies
 npm install
 
-# 3. 开发模式运行（Vite HMR + Tauri）
+# 3. Run in development mode (Vite HMR + Tauri)
 npm run tauri dev
 
-# 4. 生产构建
+# 4. Production build
 npm run tauri build
 ```
 
-构建产物位于 `src-tauri/target/release/bundle/` 目录下。
+Build artifacts are located in `src-tauri/target/release/bundle/`.
 
 ---
 
-## 配置文件位置
+## Configuration File Locations
 
-| 内容 | Windows | macOS | Linux |
-|------|---------|-------|-------|
-| 配置文件 | `%APPDATA%\SnapTranslate\config\config.toml` | `~/Library/Application Support/SnapTranslate/config/config.toml` | `~/.config/SnapTranslate/config/config.toml` |
-| 历史数据库 | `%APPDATA%\SnapTranslate\data\history.db` | `~/Library/Application Support/SnapTranslate/data/history.db` | `~/.local/share/SnapTranslate/data/history.db` |
+| Content | Windows | macOS | Linux |
+|---------|---------|-------|-------|
+| Config File | `%APPDATA%\SnapTranslate\config\config.toml` | `~/Library/Application Support/SnapTranslate/config/config.toml` | `~/.config/SnapTranslate/config/config.toml` |
+| History Database | `%APPDATA%\SnapTranslate\data\history.db` | `~/Library/Application Support/SnapTranslate/data/history.db` | `~/.local/share/SnapTranslate/data/history.db` |
 
-> **API 密钥**不保存在配置文件中，通过操作系统凭据管理器（Windows Credential Manager / macOS Keychain / Linux Secret Service）安全存储。
+> **API Key** is NOT stored in the configuration file; it is securely saved via the OS credential manager (Windows Credential Manager / macOS Keychain / Linux Secret Service).
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 SnapTranslate/
-├── src/                          # 前端源码 (Vue 3 + TypeScript)
-│   ├── components/               #   公共组件
-│   │   ├── ControlBar.vue        #     贴图控制栏（翻译/复制/切换）
-│   │   ├── HistoryItem.vue       #     历史记录条目
-│   │   └── ShortcutInput.vue     #     快捷键捕获输入
-│   ├── views/                    #   页面视图
-│   │   ├── OverlayView.vue       #     全屏截图蒙版（Canvas 框选 + 十字准星光标）
-│   │   ├── PinView.vue           #     贴图窗口（截图+译文面板，支持面板拉伸）
-│   │   ├── SettingsView.vue      #     设置页面（Naive UI，含 OCR 语言和自动更新）
-│   │   ├── HistoryView.vue       #     历史记录页面
-│   │   └── TextTranslateView.vue #     文本翻译窗口
-│   ├── stores/                   #   Pinia 状态管理
-│   │   ├── configStore.ts        #     配置状态
-│   │   ├── pinStore.ts           #     贴图状态
-│   │   └── historyStore.ts       #     历史状态
-│   ├── i18n/                     #   国际化
-│   │   ├── index.ts              #     vue-i18n 配置
-│   │   └── locales/
-│   │       ├── zh-CN.ts          #     中文语言包
-│   │       └── en-US.ts          #     英文语言包
-│   ├── styles/                   #   全局样式
-│   │   ├── variables.css         #     CSS 自定义属性
-│   │   └── global.css            #     全局重置
-│   ├── utils/                    #   工具函数
-│   │   ├── tauri.ts              #     Tauri 命令绑定 + 接口定义
-│   │   └── logger.ts             #     结构化日志
+├── src/                          # Frontend source (Vue 3 + TypeScript)
+│   ├── components/               #   Shared components
+│   │   ├── ControlBar.vue        #     Pin control bar (translate/copy/toggle)
+│   │   ├── HistoryItem.vue       #     History entry
+│   │   └── ShortcutInput.vue     #     Hotkey capture input
+│   ├── views/                    #   Page views
+│   │   ├── OverlayView.vue       #     Fullscreen selection overlay (Canvas + crosshair cursor)
+│   │   ├── PinView.vue           #     Pin window (screenshot + translation panel, stretch support)
+│   │   ├── SettingsView.vue      #     Settings page (Naive UI, with OCR language and auto-update)
+│   │   ├── HistoryView.vue       #     History page
+│   │   └── TextTranslateView.vue #     Text translation window
+│   ├── stores/                   #   Pinia state management
+│   │   ├── configStore.ts        #     Config state
+│   │   ├── pinStore.ts           #     Pin state
+│   │   └and historyStore.ts       #     History state
+│   ├── i18n/                     #   Internationalization
+│   │   ├── index.ts              #     vue-i18n config
+│   │   └ locales/
+│   │       ├── zh-CN.ts          #     Chinese language pack
+│   │       └and en-US.ts          #     English language pack
+│   ├── styles/                   #   Global styles
+│   │   ├── variables.css         #     CSS custom properties
+│   │   └and global.css            #     Global reset
+│   ├── utils/                    #   Utility functions
+│   │   ├── tauri.ts              #     Tauri command bindings + interface definitions
+│   │   └and logger.ts             #     Structured logging
 │   ├── router/
-│   │   └── index.ts              #   Vue Router（5 个路由）
-│   └── main.ts                   #   应用入口
-├── src-tauri/                    # Rust 后端
+│   │   └and index.ts              #   Vue Router (5 routes)
+│   └and main.ts                   #   Application entry
+├── src-tauri/                    # Rust backend
 │   ├── src/
-│   │   ├── capture/mod.rs        #   截图模块（xcap 封装）
-│   │   ├── ocr/mod.rs            #   OCR 模块（Tesseract CLI，支持源语言选择）
-│   │   ├── translate/mod.rs      #   翻译模块（AI API + 缓存）
-│   │   ├── update/mod.rs         #   自动更新模块（静默检查+下载安装）
-│   │   ├── config/               #   配置管理（TOML + keyring）
-│   │   ├── history/mod.rs        #   历史记录（SQLite CRUD）
-│   │   ├── clipboard/mod.rs      #   剪贴板读写
-│   │   ├── hotkey/mod.rs         #   全局快捷键注册
-│   │   ├── window/mod.rs         #   窗口管理（单例/多实例）
-│   │   ├── tray/mod.rs           #   系统托盘菜单
-│   │   ├── commands.rs           #   23 个 Tauri 命令
-│   │   ├── error.rs              #   统一错误类型
-│   │   ├── lib.rs                #   setup 入口
-│   │   └── main.rs               #   main 函数
-│   ├── nsis/                     #   NSIS 安装包模板
-│   └── resources/tesseract/      #   Tesseract OCR 离线数据
-├── docs/                         # 项目文档
-│   ├── SRS.md                    #   软件需求规格说明书
-│   ├── ARCHITECTURE.md           #   架构设计文档
-│   ├── HLD.md                    #   概要设计说明书
-│   ├── DLD.md                    #   详细设计说明书
-│   ├── TEST_PLAN.md              #   测试计划
-│   └── TEST_DESIGN.md            #   测试设计规格说明
+│   │   ├── capture/mod.rs        #   Capture module (xcap wrapper)
+│   │   ├── ocr/mod.rs            #   OCR module (Tesseract CLI, with source language selection)
+│   │   ├── translate/mod.rs      #   Translation module (AI API + cache)
+│   │   ├── update/mod.rs         #   Auto-update module (silent check + download & install)
+│   │   ├── config/               #   Configuration management (TOML + keyring)
+│   │   ├── history/mod.rs        #   History (SQLite CRUD)
+│   │   ├── clipboard/mod.rs      #   Clipboard read/write
+│   │   ├── hotkey/mod.rs         #   Global hotkey registration
+│   │   ├── window/mod.rs         #   Window management (singleton/multi-instance)
+│   │   ├── tray/mod.rs           #   System tray menu
+│   │   ├── commands.rs           #   23 Tauri commands
+│   │   ├── error.rs              #   Unified error types
+│   │   ├── lib.rs                #   Setup entry
+│   │   └and main.rs               #   Main function
+│   ├── nsis/                     #   NSIS installer template
+│   └and resources/tesseract/      #   Tesseract OCR offline data
+├── docs/                         # Project documentation
+│   ├── SRS.md                    #   Software Requirements Specification
+│   ├── ARCHITECTURE.md           #   Architecture Design Document
+│   ├── HLD.md                    #   High-Level Design
+│   ├── DLD.md                    #   Detailed Design
+│   ├── TEST_PLAN.md              #   Test Plan
+│   └and TEST_DESIGN.md            #   Test Design Specification
 ├── package.json
-├── CLAUDE.md                     # 开发指南
-└── LICENSE                       # MIT License
+├── CLAUDE.md                     # Development guide
+└and LICENSE                       # MIT License
 ```
 
 ---
 
-## 数据流
+## Data Flow
 
 ```
-[用户按下全局快捷键]
+[User presses global hotkey]
         │
         ▼
-┌────────────────────────────────────────────────────────┐
-│                    截图模块                              │
-│  xcap 全屏截图 → 缓存到 CachedScreenStore                │
-│  → 创建全屏蒙版窗口 → 用户拖拽框选 → 裁剪区域            │
-│  → store_pin_image → 创建贴图窗口                       │
-└────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                    Capture Module                          │
+│  xcap fullscreen capture → cache to CachedScreenStore     │
+│  → create fullscreen overlay window → user drag-select   │
+│  → crop region → store_pin_image → create pin window      │
+└──────────────────────────────────────────────────────────┘
         │
         ▼
-┌────────────────────────────────────────────────────────┐
-│                   贴图窗口                               │
-│  PinView 拉取图像 → 显示截图 + 控制栏                    │
-│  用户点击「翻译」→ invoke translate_image                │
-└────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                    Pin Window                              │
+│  PinView fetches image → display screenshot + control bar │
+│  User clicks "Translate" → invoke translate_image         │
+└──────────────────────────────────────────────────────────┘
         │
         ▼
-┌────────────────────────────────────────────────────────┐
-│               OCR + 翻译流水线                           │
-│  ① Tesseract 离线识别 → 文字 + 坐标 (OcrBlock[])        │
-│  ② 查找历史缓存 ──→ 命中？──→ 直接返回缓存结果           │
-│                    │                                    │
-│                  未命中                                  │
-│                    │                                    │
-│  ③ 调用 AI API → 解析翻译 → 坐标对齐 → 返回翻译块      │
-│  ④ 异步保存到 SQLite 历史记录                           │
-└────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                OCR + Translation Pipeline                  │
+│  ① Tesseract offline recognition → text + coords          │
+│  ② Check history cache ──→ Hit? ──→ Return cached result  │
+│                    │                                       │
+│                  Miss                                     │
+│                    │                                       │
+│  ③ Call AI API → Parse translation → Align coords        │
+│  ④ Async save to SQLite history                           │
+└──────────────────────────────────────────────────────────┘
         │
         ▼
-[译文渲染到右侧面板，支持原文/译文切换、复制、拉伸]
+[Translation rendered in right panel, with original/translation toggle, copy, and stretch support]
 ```
 
 ---
 
-## 设计理念
+## Design Philosophy
 
-- **隐私优先：** OCR 在本地完成，不存在截图上传到第三方服务的风险；翻译仅与你自己的 API 端点通信，无遥测、无追踪
-- **即截即用：** 截图固定在原位再翻译，不弹新窗口，不打断当前操作流
-- **离线可靠：** 即使网络不可用，截图和贴图功能完全正常，OCR 完全离线
-- **缓存提效：** 重复内容匹配历史缓存，秒出结果，节省 API 调用费用
-- **轻量自持：** 基于 Tauri 构建，安装包小、内存占用低，Rust 后端保证高性能和低功耗
+- **Privacy First:** OCR runs locally — no risk of screenshots being uploaded to third-party services; translation communicates only with your own API endpoint; no telemetry, no tracking
+- **Snap & Go:** Screenshots are pinned in place before translation — no new windows, no disruption to your current workflow
+- **Offline Reliable:** Screenshot and pin functions work fully even without internet; OCR is completely offline
+- **Cache Efficiency:** Repeated content matches historical cache for instant results, saving API call costs
+- **Lightweight & Self-Sustaining:** Built on Tauri with small installer size and low memory footprint; Rust backend ensures high performance and low power consumption
 
 ---
 
-## 许可
+## License
 
 [MIT License](LICENSE)
 
