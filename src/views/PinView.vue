@@ -484,12 +484,23 @@ async function doTranslate(forceRetranslate: boolean) {
 
     logger.info(TAG, `翻译完成，共 ${translatedBlocks.value.length} 个翻译块`)
 
-    // 面板初始高度与图片高度等高，若图片太窄导致高度太矮，保证至少有 120px 初始可读高度
+    // 面板初始高度根据译文内容自适应：先让面板按内容渲染，再测量实际内容高度
     await nextTick()
-    const initH = Math.max(logicalImageHeight.value, 120)
-    panelHeight.value = initH
-    initialPanelHeight = initH
-    logger.info(TAG, `译文面板初始高度: ${initialPanelHeight}px`)
+    // 清除显式高度，让面板按内容自适应撑开
+    panelHeight.value = null
+    await nextTick()
+    // 测量面板实际内容高度（scrollHeight 包含 padding，不包含 border）
+    let contentH = 0
+    if (panelRef.value) {
+      contentH = panelRef.value.scrollHeight
+    }
+    if (contentH <= 0) {
+      // 测量失败时的兜底值
+      contentH = 120
+    }
+    panelHeight.value = contentH
+    initialPanelHeight = contentH
+    logger.info(TAG, `译文面板初始高度: ${initialPanelHeight}px (内容自适应)`)
 
     updateWindowSize(true)
     adjustWindowPositionIfNeeded()
