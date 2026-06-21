@@ -263,11 +263,6 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
         #[cfg(not(target_os = "macos"))]
         let builder = builder.transparent(true);
 
-        // 防止截图 API 捕获蒙版窗口内容（Windows 10 2004+ / Windows 11 有效）
-        // 仅 Windows 平台启用：Linux 上蒙版窗口在截图后创建，无需此标志
-        #[cfg(target_os = "windows")]
-        let builder = builder.content_protected(true);
-
         let builder = if is_wayland {
             builder.fullscreen(true)
         } else {
@@ -276,13 +271,11 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
                 .inner_size(monitor_w, monitor_h)
         };
 
-        let builder = builder
+        builder
             .shadow(false)
             .focusable(true)
-            .resizable(false);
-        #[cfg(target_os = "linux")]
-        let builder = builder.visible(false);
-        builder
+            .resizable(false)
+            .visible(false)
             .build()
             .map_err(|e| AppError::ConfigError(format!("创建蒙版窗口失败: {}", e)))?
     };
@@ -291,19 +284,24 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
     {
         use raw_window_handle::HasWindowHandle;
+        use windows_sys::Win32::Foundation::HWND;
         use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_TRANSITIONS_FORCEDISABLED};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
         if let Ok(handle) = window.window_handle() {
             let raw = handle.as_ref();
             if let raw_window_handle::RawWindowHandle::Win32(win32) = raw {
                 let hwnd = win32.hwnd.get() as *mut std::ffi::c_void;
-                let disabled: i32 = 1;
                 unsafe {
+                    // 禁用 DWM 过渡动画（避免缩放动画）
+                    let disabled: i32 = 1;
                     DwmSetWindowAttribute(
                         hwnd,
                         DWMWA_TRANSITIONS_FORCEDISABLED as u32,
                         &disabled as *const _ as *const std::ffi::c_void,
                         std::mem::size_of::<i32>() as u32,
                     );
+                    // 防截图捕获（不影响 DWM 位图缓存，避免白色边缘）
+                    SetWindowDisplayAffinity(hwnd as HWND, WDA_EXCLUDEFROMCAPTURE);
                 }
             }
         }
@@ -323,7 +321,6 @@ fn create_overlay_window_inner(app: &AppHandle) -> Result<(), AppError> {
         }
     }
 
-    #[cfg(target_os = "linux")]
     let _ = window.show();
     let _ = window.set_focus();
 
