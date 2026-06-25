@@ -98,6 +98,10 @@
 
 > 以下为应用运行界面预览(项目配套有完整的 logo 设计页面 `logo-design.html`):
 
+<p align="center">
+  <img src="docs/assets/readme-preview.png" alt="SnapTranslate README 预览" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+</p>
+
 | 模块 | 预览 |
 |------|------|
 | **截图蒙版** | 半透明暗色遮罩 + 白虚线框选 + 尺寸提示 + 十字准星光标 |

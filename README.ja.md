@@ -98,6 +98,10 @@ Ctrl+Alt+M を押す         テキスト翻訳ウィンドウを開き、直接
 
 > 以下はアプリケーションインターフェースのプレビューです（プロジェクトには完全なロゴデザインページ `logo-design.html` が付属）：
 
+<p align="center">
+  <img src="docs/assets/readme-preview.png" alt="SnapTranslate README プレビュー" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+</p>
+
 | モジュール | プレビュー |
 |-----------|-----------|
 | **選択オーバーレイ** | 半透明ダークマスク + 白点線選択枠 + サイズ表示 + 十字カーソル |

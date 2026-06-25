@@ -98,6 +98,10 @@ Press Ctrl+Alt+M         Open text translation window, type and translate direct
 
 > Below are previews of the application interface (the project includes a complete logo design page `logo-design.html`):
 
+<p align="center">
+  <img src="docs/assets/readme-preview.png" alt="SnapTranslate README preview" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+</p>
+
 | Module | Preview |
 |--------|---------|
 | **Selection Overlay** | Semi-transparent dark mask + white dashed selection box + dimension indicator + crosshair cursor |
