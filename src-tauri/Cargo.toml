@@ -32,6 +32,7 @@ log = "0.4.29"
 sys-locale = "0.3"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-updater = "2"
+chrono = "0.4"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 raw-window-handle = "0.6"

@@ -187,20 +187,26 @@
 
           <!-- 配置文件路径提示 -->
           <n-card :title="t('settings.configFilePath')" size="small">
-            <n-space align="center" :size="8">
-              <n-text code class="selectable-path" style="font-size: 12px; word-break: break-all; flex: 1">
-                {{ configPath || t('common.loading') }}
-              </n-text>
-            </n-space>
+            <template #header-extra>
+              <n-button size="small" @click="openConfigFolder" :disabled="!configPath">
+                {{ t('settings.openFolder') }}
+              </n-button>
+            </template>
+            <n-text code class="selectable-path" style="font-size: 12px; word-break: break-all">
+              {{ configPath || t('common.loading') }}
+            </n-text>
           </n-card>
 
           <!-- 日志文件路径提示 -->
           <n-card :title="t('settings.logFilePath')" size="small">
-            <n-space align="center" :size="8">
-              <n-text code class="selectable-path" style="font-size: 12px; word-break: break-all; flex: 1">
-                {{ logDir || t('common.loading') }}
-              </n-text>
-            </n-space>
+            <template #header-extra>
+              <n-button size="small" @click="openLogFolder" :disabled="!logDir">
+                {{ t('settings.openFolder') }}
+              </n-button>
+            </template>
+            <n-text code class="selectable-path" style="font-size: 12px; word-break: break-all">
+              {{ logDir || t('common.loading') }}
+            </n-text>
           </n-card>
 
           <!-- 操作按钮 -->
@@ -240,6 +246,7 @@ import {
   createDiscreteApi,
 } from 'naive-ui'
 import { check, type Update, type DownloadEvent } from '@tauri-apps/plugin-updater'
+import { invoke } from '@tauri-apps/api/core'
 import { useConfigStore } from '@/stores/configStore'
 import { testApiConnection, deleteApiKey, getConfigPath, getLogDir, enableAutoStart, disableAutoStart, isAutoStartEnabled, restartApp, type AppConfig } from '@/utils/tauri'
 import { logger } from '@/utils/logger'
@@ -294,6 +301,30 @@ const testing = ref(false)
 const deleting = ref(false)
 const configPath = ref('')
 const logDir = ref('')
+
+// 在系统资源管理器中定位到配置文件
+const openConfigFolder = async () => {
+  if (!configPath.value) return
+  try {
+    // 调用后端命令：定位到 config.toml 文件
+    await invoke('reveal_in_explorer', { path: configPath.value })
+  } catch (e) {
+    logger.error(TAG, '打开配置文件所在目录失败', e)
+    message.error(t('common.error'))
+  }
+}
+
+// 在系统资源管理器中打开日志目录
+const openLogFolder = async () => {
+  if (!logDir.value) return
+  try {
+    // 调用后端命令：打开日志目录
+    await invoke('reveal_in_explorer', { path: logDir.value })
+  } catch (e) {
+    logger.error(TAG, '打开日志目录失败', e)
+    message.error(t('common.error'))
+  }
+}
 
 // 开机自启动状态
 const autoStartEnabled = ref(false)

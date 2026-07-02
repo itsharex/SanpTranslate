@@ -74,6 +74,7 @@ export default {
     connectionFailed: '连接失败',
     configFilePath: '配置文件路径',
     logFilePath: '日志文件路径',
+    openFolder: '打开',
     deleteApiKey: '删除密钥',
     confirmDeleteApiKey: '确定要删除已保存的 API 密钥吗？',
     apiKeyDeleted: 'API 密钥已删除',

@@ -386,10 +386,14 @@ pub fn get_config_path(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 /// 获取日志文件目录路径
+///
+/// dev 模式下日志写入项目根目录/log/（与 logging 模块配置一致），
+/// prod 模式下使用 OS 标准日志目录。
 #[tauri::command]
-pub fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
-    let log_dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
-    Ok(log_dir.to_string_lossy().to_string())
+pub fn get_log_dir() -> Result<String, String> {
+    crate::logging::get_log_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "无法确定日志目录路径".to_string())
 }
 
 #[tauri::command]
@@ -681,4 +685,59 @@ pub async fn translate_text(
         translated_text,
         from_cache: false,
     })
+}
+
+/// 在系统资源管理器中定位到指定路径
+///
+/// - 如果是文件：打开父目录并选中该文件
+/// - 如果是目录：直接打开该目录
+#[tauri::command]
+pub fn reveal_in_explorer(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let path_obj = std::path::Path::new(&path);
+
+    #[cfg(target_os = "windows")]
+    {
+        if path_obj.is_dir() {
+            // 打开目录
+            Command::new("explorer.exe")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("打开目录失败: {}", e))?;
+        } else {
+            // 定位到文件：使用 /select 参数
+            Command::new("explorer.exe")
+                .arg(format!("/select,{}", path))
+                .spawn()
+                .map_err(|e| format!("定位文件失败: {}", e))?;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if path_obj.is_dir() {
+            Command::new("open")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("打开目录失败: {}", e))?;
+        } else {
+            // 定位到文件
+            Command::new("open")
+                .arg("-R")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("定位文件失败: {}", e))?;
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(if path_obj.is_dir() { &path } else { path_obj.parent().unwrap_or(path_obj) })
+            .spawn()
+            .map_err(|e| format!("打开目录失败: {}", e))?;
+    }
+
+    Ok(())
 }

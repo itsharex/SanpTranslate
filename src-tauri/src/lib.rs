@@ -5,6 +5,7 @@ mod config;
 mod error;
 mod history;
 mod hotkey;
+mod logging;
 mod ocr;
 mod translate;
 mod tray;
@@ -16,14 +17,59 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 在 tauri 初始化前执行日志目录初始化（过期清理）
+    // 并获取当前会话的日志文件名（含时间戳，每次启动独立）
+    let log_file_name = logging::init_before_tauri();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview))
-                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }))
-                .level(log::LevelFilter::Info)
+                .targets({
+                    // dev 模式：日志写入项目根目录/log/，便于开发时直接查看
+                    // prod 模式：日志写入 OS 标准日志目录
+                    #[cfg(debug_assertions)]
+                    {
+                        let dev_log_dir = logging::get_log_dir()
+                            .expect("无法确定开发日志目录路径");
+                        vec![
+                            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                                path: dev_log_dir,
+                                file_name: Some(log_file_name.clone()),
+                            }),
+                        ]
+                    }
+
+                    #[cfg(not(debug_assertions))]
+                    {
+                        vec![
+                            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                                file_name: Some(log_file_name.into()),
+                            }),
+                        ]
+                    }
+                })
+                .level({
+                    // dev 模式 Debug 级别，prod 模式 Info 级别
+                    #[cfg(debug_assertions)]
+                    {
+                        log::LevelFilter::Debug
+                    }
+                    #[cfg(not(debug_assertions))]
+                    {
+                        log::LevelFilter::Info
+                    }
+                })
+                // 保留所有历史日志，配合应用层过期清理避免无限增长
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                // 单文件最大 10MB，超过后 tauri-plugin-log 自动创建新文件
+                .max_file_size(10 * 1024 * 1024)
+                // 使用本地时区，便于人工阅读
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )
         .plugin(tauri_plugin_autostart::init(
@@ -66,7 +112,8 @@ pub fn run() {
             commands::get_history_detail,
             commands::delete_history,
             commands::clear_history,
-            commands::restart_app
+            commands::restart_app,
+            commands::reveal_in_explorer
         ])
         .setup(|app| {
             // 注册 updater 插件（必须在 setup 中注册，否则前端和后端都无法使用更新功能）
